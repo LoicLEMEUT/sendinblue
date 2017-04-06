@@ -53,7 +53,7 @@ class SignupForm extends ContentEntityForm {
       '#attributes' => ['style' => 'width:200px;'],
     ];
     // Machine-readable list name.
-    $status = isset($signup->status->value) && $signup->mcsId->value && (($signup->status->value & ENTITY_IN_CODE) || ($signup->status->value & ENTITY_FIXED));
+    $status = isset($signup->status->value) && $signup->mcsId->value && (($signup->status->value) || ($signup->status->value));
     $form['wrap_left']['form']['name'] = [
       '#type' => 'machine_name',
       '#default_value' => $signup->name->value,
@@ -257,7 +257,7 @@ class SignupForm extends ContentEntityForm {
       '#options' => $options,
       '#default_value' => isset($settings['subscription']['settings']['template']) ? $settings['subscription']['settings']['template'] : '-1',
       '#description' => t('Select the template that will be sent to your new subscribers. You can create new template at @SendinBlue.',
-        ['@SendinBlue' => Link::fromTextAndUrl(t('SendinBlue'), Url::fromUri('https://my.sendinblue.com/camp/listing/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link#temp_active_m'))]),
+        ['@SendinBlue' => Link::fromTextAndUrl(t('SendinBlue'), Url::fromUri('https://my.sendinblue.com/camp/listing/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link#temp_active_m'))->toString()]),
       '#states' => [
         // Hide unless needed.
         'visible' => [
@@ -386,7 +386,7 @@ class SignupForm extends ContentEntityForm {
       \Drupal::service('router.builder')->rebuild();
     }
     drupal_set_message(t('Signup form @name has been saved.',
-      ['@name' => $this->entity->name]));
+      ['@name' => $form_state->getValue(['title'])]));
     $form_state->setRedirect('admin/config/system/sendinblue/signup');
 
     parent::submitForm($form, $form_state);

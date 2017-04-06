@@ -18,7 +18,7 @@ class TransactionnalEmailForm extends ConfigFormBase {
    *   The unique string identifying the form.
    */
   public function getFormId() {
-    return 'sendinblue_form_send_email';
+    return SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL;
   }
 
   /**
@@ -33,11 +33,11 @@ class TransactionnalEmailForm extends ConfigFormBase {
    *   The form structure.
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    $smtp_details = \Drupal::config('sendinblue_form_send_email.settings')
+    $smtp_details = \Drupal::config(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
       ->get(SendinblueManager::SMTP_DETAILS, '');
     $config = \Drupal::getContainer()
       ->get('config.factory')
-      ->getEditable('sendinblue_form_send_email.settings');
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL);
 
     if ($smtp_details == FALSE) {
       $smtp_details = SendinblueManager::updateSmtpDetails();
@@ -64,7 +64,7 @@ class TransactionnalEmailForm extends ConfigFormBase {
     $form['sendinblue_on'] = [
       '#type' => 'radios',
       '#title' => t('Send emails through SendinBlue SMTP'),
-      '#default_value' => \Drupal::config('sendinblue_form_send_email.settings')
+      '#default_value' => \Drupal::config(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
         ->get('sendinblue_on', ''),
       '#description' => t('Choose "Yes" if you want to use SendinBlue SMTP to send transactional emails.'),
       '#options' => [1 => t('Yes'), 0 => t('No')],
@@ -102,12 +102,12 @@ class TransactionnalEmailForm extends ConfigFormBase {
     $sendinblue_on = $form_state->getValue('sendinblue_on');
     $config = \Drupal::getContainer()
       ->get('config.factory')
-      ->getEditable('sendinblue_form_send_email.settings');
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL);
 
     $send_email = $form_state->getValue('sendinblue_to_email');
 
     if ($sendinblue_on == '1') {
-      $smtp_details = \Drupal::config('sendinblue_form_send_email.settings')
+      $smtp_details = \Drupal::config(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
         ->get(SendinblueManager::SMTP_DETAILS, '');
 
       if ($smtp_details == NULL) {
@@ -150,7 +150,7 @@ class TransactionnalEmailForm extends ConfigFormBase {
    *   conjunction with the trait's config() method.
    */
   protected function getEditableConfigNames() {
-    return ['sendinblue_form_send_email.settings'];
+    return [SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL];
   }
 
 }

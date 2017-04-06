@@ -17,6 +17,16 @@ class SendinblueManager {
   /**
    * Variable name of Sendinblue access key.
    */
+  const CONFIG_SETTINGS = 'sendinblue_config_global.settings';
+
+  /**
+   * Variable name of Sendinblue access key.
+   */
+  const CONFIG_SETTINGS_SEND_EMAIL = 'sendinblue_config_send_email.settings';
+
+  /**
+   * Variable name of Sendinblue access key.
+   */
   const ACCESS_KEY = 'sendinblue_access_key';
 
   /**
@@ -53,7 +63,7 @@ class SendinblueManager {
    * Get the access key store in configuration.
    */
   public static function getAccessKey() {
-    return \Drupal::config('sendinblue_form_login.settings')
+    return \Drupal::config(self::CONFIG_SETTINGS)
       ->get(self::ACCESS_KEY, '');
   }
 
@@ -61,7 +71,7 @@ class SendinblueManager {
    * Get the account email store in configuration.
    */
   public static function getAccountEmail() {
-    return \Drupal::config('sendinblue_form_login.settings')
+    return \Drupal::config(self::CONFIG_SETTINGS)
       ->get(self::ACCOUNT_EMAIL, '');
   }
 
@@ -69,7 +79,7 @@ class SendinblueManager {
    * Get the account username store in configuration.
    */
   public static function getAccountUsername() {
-    return \Drupal::config('sendinblue_form_login.settings')
+    return \Drupal::config(self::CONFIG_SETTINGS)
       ->get(self::ACCOUNT_USERNAME, '');
   }
 
@@ -77,7 +87,7 @@ class SendinblueManager {
    * Get the data account store in configuration.
    */
   public static function getAccountData() {
-    return \Drupal::config('sendinblue_form_login.settings')
+    return \Drupal::config(self::CONFIG_SETTINGS)
       ->get(self::ACCOUNT_DATA, '');
   }
 
@@ -85,7 +95,7 @@ class SendinblueManager {
    * Get the access token store in configuration.
    */
   public static function getAccessKeyToken() {
-    return \Drupal::config('sendinblue_form_login.settings')
+    return \Drupal::config(self::CONFIG_SETTINGS)
       ->get(self::ACCESS_TOKEN, '');
   }
 
@@ -324,7 +334,7 @@ class SendinblueManager {
     $html_content = str_replace('{site_domain}', $site_domain, $html_content);
 
     $text_content = str_replace('{site_domain}', self::getBaseUrl(), $text_content);
-    $activate_email = \Drupal::config('sendinblue_form_send_email.settings')
+    $activate_email = \Drupal::config(self::CONFIG_SETTINGS_SEND_EMAIL)
       ->get('sendinblue_on', '');
     if ($activate_email == '1') {
       $headers = [];
@@ -572,7 +582,7 @@ class SendinblueManager {
     $response = $mailin->getSmtpDetails();
     $config = \Drupal::getContainer()
       ->get('config.factory')
-      ->getEditable('sendinblue_form_send_email.settings');
+      ->getEditable(self::CONFIG_SETTINGS_SEND_EMAIL);
 
     if ($response['code'] == 'success') {
       if ($response['data']['relay_data']['status'] == 'enabled') {

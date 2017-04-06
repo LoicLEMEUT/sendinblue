@@ -111,21 +111,16 @@ function sendinblue_schema() {
  * Implements hook_uninstall().
  */
 function sendinblue_uninstall() {
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::ACCESS_KEY);
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::ACCOUNT_EMAIL);
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::ACCOUNT_USERNAME);
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::ACCOUNT_DATA);
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::ACCESS_TOKEN);
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::ACCESS_KEY);
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::ATTRIBUTE_LISTS);
-  \Drupal::config('sendinblue_form_login.settings')->clear(SendinblueManager::SMTP_DETAILS);
-  \Drupal::config('sendinblue_form_send_email.settings')->clear('sendinblue_on');
-  \Drupal::config('sendinblue_form_send_email.settings')->clear('sendinblue_debug');
-
-  $queue = DrupalQueue::get('sendinblue');
-  $queue->deleteQueue();
-  $queue = DrupalQueue::get('sendinblue_batch');
-  $queue->deleteQueue();
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCESS_KEY);
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCOUNT_EMAIL);
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCOUNT_USERNAME);
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCOUNT_DATA);
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCESS_TOKEN);
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCESS_KEY);
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ATTRIBUTE_LISTS);
+  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::SMTP_DETAILS);
+  \Drupal::config('sendinblue_config_send_email.settings')->clear('sendinblue_on');
+  \Drupal::config('sendinblue_config_send_email.settings')->clear('sendinblue_debug');
 }
 
 /**

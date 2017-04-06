@@ -59,7 +59,7 @@ class ConfigurationSendinblueForm extends ConfigFormBase {
     $access_key = $form_state->getValue('access_key');
     $config = \Drupal::getContainer()
       ->get('config.factory')
-      ->getEditable('sendinblue_form_login.settings');
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS);
 
     $mailin = new SendinblueMailin(SendinblueManager::API_URL, $access_key);
     $response = $mailin->getAccount();
