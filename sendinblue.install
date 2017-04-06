@@ -1,5 +1,8 @@
 <?php
 
+use Drupal\sendinblue\SendinblueManager;
+
+
 /**
  * @file
  * Install, update and uninstall functions for the sendinblue module.
@@ -111,16 +114,13 @@ function sendinblue_schema() {
  * Implements hook_uninstall().
  */
 function sendinblue_uninstall() {
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCESS_KEY);
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCOUNT_EMAIL);
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCOUNT_USERNAME);
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCOUNT_DATA);
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCESS_TOKEN);
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ACCESS_KEY);
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::ATTRIBUTE_LISTS);
-  \Drupal::config('sendinblue_config_global.settings')->clear(SendinblueManager::SMTP_DETAILS);
-  \Drupal::config('sendinblue_config_send_email.settings')->clear('sendinblue_on');
-  \Drupal::config('sendinblue_config_send_email.settings')->clear('sendinblue_debug');
+    $CONFIG_SETTINGS = \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS)->delete();
+
+    $CONFIG_SETTINGS_SEND_EMAIL = \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)->delete();
 }
 
 /**
