@@ -1,7 +1,11 @@
 <?php
 
-use Drupal\sendinblue\SendinblueManager;
+/**
+ * @file
+ * The installation point of Sendinblue module.
+ */
 
+use Drupal\sendinblue\SendinblueManager;
 
 /**
  * @file
@@ -114,13 +118,13 @@ function sendinblue_schema() {
  * Implements hook_uninstall().
  */
 function sendinblue_uninstall() {
-    $CONFIG_SETTINGS = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS)->delete();
+  \Drupal::getContainer()
+    ->get('config.factory')
+    ->getEditable(SendinblueManager::CONFIG_SETTINGS)->delete();
 
-    $CONFIG_SETTINGS_SEND_EMAIL = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)->delete();
+  \Drupal::getContainer()
+    ->get('config.factory')
+    ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)->delete();
 }
 
 /**

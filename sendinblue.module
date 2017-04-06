@@ -6,7 +6,6 @@
  */
 
 define('SENDINBLUE_SIGNUP_ENTITY', 'sendinblue_signup_form');
-
 define('SENDINBLUE_SIGNUP_BLOCK', 1);
 define('SENDINBLUE_SIGNUP_PAGE', 2);
 define('SENDINBLUE_SIGNUP_BOTH', 3);
