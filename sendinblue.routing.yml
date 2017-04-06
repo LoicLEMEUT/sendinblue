@@ -13,6 +13,7 @@ sendinblue.admin.sendinblue_list_page:
     _controller: 'Drupal\sendinblue\Controller\SendinblueController::listPage'
   requirements:
     _permission: 'administer sendinblue'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 sendinblue.admin.sendinblue_campaign_page:
   path: '/admin/config/system/sendinblue/campaigns'
@@ -21,6 +22,7 @@ sendinblue.admin.sendinblue_campaign_page:
     _controller: 'Drupal\sendinblue\Controller\SendinblueController::listCampaigns'
   requirements:
     _permission: 'administer sendinblue'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 sendinblue.admin.sendinblue_statistic_page:
   path: '/admin/config/system/sendinblue/statistics'
@@ -29,6 +31,7 @@ sendinblue.admin.sendinblue_statistic_page:
     _controller: 'Drupal\sendinblue\Controller\SendinblueController::statisticsPage'
   requirements:
     _permission: 'administer sendinblue'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 
 entity.sendinblue_signup_form.canonical:
@@ -40,6 +43,7 @@ entity.sendinblue_signup_form.canonical:
   requirements:
   # Calls the access controller of the entity, $operation 'view'
     _entity_access: 'sendinblue_signup_form.view'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 entity.sendinblue_signup_form.collection:
   path: '/admin/config/system/sendinblue/sendinblue_signup_form/list'
@@ -50,6 +54,7 @@ entity.sendinblue_signup_form.collection:
   requirements:
   # Checks for permission directly.
     _permission: 'view sendinblue entity'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 entity.sendinblue_signup_form.signup_add:
   path: '/admin/config/system/sendinblue/sendinblue_signup_form/add'
@@ -59,6 +64,7 @@ entity.sendinblue_signup_form.signup_add:
     _title: 'Add Form'
   requirements:
     _entity_create_access: 'sendinblue_signup_form'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 entity.sendinblue_signup_form.edit_form:
   path: '/admin/config/system/sendinblue/sendinblue_signup_form/{sendinblue_signup_form}/edit'
@@ -68,6 +74,7 @@ entity.sendinblue_signup_form.edit_form:
     _title: 'Edit Form'
   requirements:
     _entity_access: 'sendinblue_signup_form.edit'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 entity.sendinblue_signup_form.delete_form:
   path: '/admin/config/system/sendinblue/sendinblue_signup_form/{sendinblue_signup_form}/delete'
@@ -77,6 +84,7 @@ entity.sendinblue_signup_form.delete_form:
     _title: 'Delete Form'
   requirements:
     _entity_access: 'sendinblue_signup_form.delete'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
 
 route_callbacks:
   - '\Drupal\sendinblue\Routing\SubscribeRoutes::routes'
