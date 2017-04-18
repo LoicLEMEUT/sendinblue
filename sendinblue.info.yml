@@ -6,7 +6,6 @@ package : SendinBlue
 # core : 8.x
 dependencies:
   - libraries (>=2)
-  - entity
 
 libraries:
   - sendinblue/sendinblue.admin-setting
