@@ -89,6 +89,9 @@ class ConfigurationSendinblueForm extends ConfigFormBase {
         $form_state->setErrorByName('access_key', t('API key is invalid'));
       }
     }
+
+    // Clear cache for menu tasks.
+    drupal_flush_all_caches();
   }
 
   /**
