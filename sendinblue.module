@@ -39,6 +39,7 @@ function sendinblue_theme($existing, $type, $theme, $path) {
         'account_email' => NULL,
         'account_data' => NULL,
         'total_subscribers' => NULL,
+        'sendinblue_logout_form' => NULL,
         'sendinblue_user_register_form' => NULL,
         'sendinblue_send_email_form' => NULL,
       ],

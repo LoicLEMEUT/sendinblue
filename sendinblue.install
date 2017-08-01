@@ -125,6 +125,10 @@ function sendinblue_uninstall() {
   \Drupal::getContainer()
     ->get('config.factory')
     ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)->delete();
+
+  \Drupal::getContainer()
+    ->get('config.factory')
+    ->getEditable(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)->delete();
 }
 
 /**

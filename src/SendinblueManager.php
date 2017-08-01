@@ -3,6 +3,7 @@
 namespace Drupal\sendinblue;
 
 use Drupal\sendinblue\Form\ConfigurationSendinblueForm;
+use Drupal\sendinblue\Form\LogoutForm;
 use Drupal\sendinblue\Form\RegisteringUserForm;
 use Drupal\sendinblue\Form\TransactionnalEmailForm;
 
@@ -150,6 +151,9 @@ class SendinblueManager {
     $account_username = self::getAccountUsername();
     $account_data = self::getAccountData();
 
+    $sendinblue_logout_form = \Drupal::formBuilder()
+      ->getForm(LogoutForm::class);
+
     $sendinblue_send_email_form = \Drupal::formBuilder()
       ->getForm(TransactionnalEmailForm::class);
 
@@ -166,6 +170,8 @@ class SendinblueManager {
         '#plain_text' => $total_subscribers,
       ],
       '#account_data' => $account_data,
+      '#sendinblue_logout_form' => \Drupal::service('renderer')
+        ->render($sendinblue_logout_form),
       '#sendinblue_send_email_form' => \Drupal::service('renderer')
         ->render($sendinblue_send_email_form),
       '#sendinblue_user_register_form' => \Drupal::service('renderer')
