@@ -3,6 +3,7 @@
 namespace Drupal\sendinblue;
 
 use Drupal\sendinblue\Form\ConfigurationSendinblueForm;
+use Drupal\sendinblue\Form\RegisteringUserForm;
 use Drupal\sendinblue\Form\TransactionnalEmailForm;
 
 /**
@@ -18,6 +19,11 @@ class SendinblueManager {
    * Variable name of Sendinblue access key.
    */
   const CONFIG_SETTINGS = 'sendinblue_config_global.settings';
+
+  /**
+   * Variable name of Sendinblue access key.
+   */
+  const CONFIG_SETTINGS_REGISTERING_USER = 'sendinblue_config_registering_user.settings';
 
   /**
    * Variable name of Sendinblue access key.
@@ -144,9 +150,11 @@ class SendinblueManager {
     $account_username = self::getAccountUsername();
     $account_data = self::getAccountData();
 
-    $form = \Drupal::formBuilder()
+    $sendinblue_send_email_form = \Drupal::formBuilder()
       ->getForm(TransactionnalEmailForm::class);
 
+    $sendinblue_user_register_form = \Drupal::formBuilder()
+      ->getForm(RegisteringUserForm::class);
     return [
       '#account_username' => [
         '#plain_text' => $account_username,
@@ -159,7 +167,9 @@ class SendinblueManager {
       ],
       '#account_data' => $account_data,
       '#sendinblue_send_email_form' => \Drupal::service('renderer')
-        ->render($form),
+        ->render($sendinblue_send_email_form),
+      '#sendinblue_user_register_form' => \Drupal::service('renderer')
+        ->render($sendinblue_user_register_form),
     ];
 
   }

@@ -33,6 +33,13 @@
             </div>
             <div class="panel panel-default row small-content">
                 <div class="page-header">
+                    <strong>{% trans %}Registering user{% endtrans %}</strong></div>
+                <div class="panel-body">
+                    {{ sendinblue_user_register_form }}
+                </div>
+            </div>
+            <div class="panel panel-default row small-content">
+                <div class="page-header">
                     <strong>{% trans %}Transactional emails{% endtrans %}</strong></div>
                 <div class="panel-body">
                     {{ sendinblue_send_email_form }}
