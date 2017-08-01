@@ -59,10 +59,6 @@ class SignupForm extends ContentEntityForm {
       '#default_value' => $signup->name->value,
       '#maxlength' => 32,
       '#disabled' => $status,
-      '#machine_name' => [
-        'exists' => 'sendinblue_signup_load_multiple_by_name',
-        'source' => ['title'],
-      ],
       '#description' => t('A unique machine-readable name for this list. It must only contain lowercase letters, numbers, and underscores.'),
       '#attributes' => ['style' => 'width:200px;'],
     ];
@@ -148,8 +144,11 @@ class SignupForm extends ContentEntityForm {
       '#suffix' => '</div>',
     ];
 
+
     foreach ($attributes as $attribute) {
-      $settings_attribute = $settings['fields']['mergefields'][$attribute['name']];
+      $settings_attribute =
+        (isset($settings['fields']['mergefields'][$attribute['name']])) ?
+          $settings['fields']['mergefields'][$attribute['name']] : NULL;
 
       $form['wrap_left']['fields']['mergefields'][$attribute['name']]['check'] = [
         '#type' => 'checkbox',
