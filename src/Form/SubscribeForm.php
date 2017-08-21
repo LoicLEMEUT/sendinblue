@@ -83,7 +83,7 @@ class SubscribeForm extends FormBase {
             ];
           }
           else {
-            if (isset($value['check'])) {
+            if (isset($value['check']) && $value['required']) {
               foreach ($attributes as $attribute) {
                 if ($attribute['name'] == $key) {
                   $type = $attribute['type'];
@@ -98,7 +98,7 @@ class SubscribeForm extends FormBase {
                   '#type' => 'textfield',
                   '#title' => ($value['label']),
                   '#attributes' => ['style' => 'width:100%;box-sizing:border-box;'],
-                  '#required' => isset($value['required']) ? TRUE : FALSE,
+                  '#required' => isset($value['required']) && $value['required'] ? TRUE : FALSE,
                 ];
               }
               else {
