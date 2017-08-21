@@ -19,17 +19,17 @@ class SendinblueManager {
   /**
    * Variable name of Sendinblue access key.
    */
-  const CONFIG_SETTINGS = 'sendinblue_config_global.settings';
+  const CONFIG_SETTINGS = 'sendinblue.config_global.settings';
 
   /**
    * Variable name of Sendinblue access key.
    */
-  const CONFIG_SETTINGS_REGISTERING_USER = 'sendinblue_config_registering_user.settings';
+  const CONFIG_SETTINGS_REGISTERING_USER = 'sendinblue.config_registering_user.settings';
 
   /**
    * Variable name of Sendinblue access key.
    */
-  const CONFIG_SETTINGS_SEND_EMAIL = 'sendinblue_config_send_email.settings';
+  const CONFIG_SETTINGS_SEND_EMAIL = 'sendinblue.config_send_email.settings';
 
   /**
    * Variable name of Sendinblue access key.
@@ -618,5 +618,7 @@ class SendinblueManager {
 
     return FALSE;
   }
+
+
 
 }

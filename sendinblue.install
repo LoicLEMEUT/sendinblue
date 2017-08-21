@@ -6,6 +6,8 @@
  */
 
 use Drupal\sendinblue\SendinblueManager;
+use Drupal\Core\Form\ConfigFormBase;
+
 
 /**
  * @file
@@ -147,3 +149,67 @@ function sendinblue_requirements($phase) {
   }
   return $requirements;
 }
+  /**
+   * Modif des noms de configuration.
+   */
+  function sendinblue_update_8001() {
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS)
+      ->set(SendinblueManager::ACCESS_KEY, \Drupal::config('sendinblue_config_global.settings')
+        ->get(SendinblueManager::ACCESS_KEY, ''))
+      ->save();
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS)
+      ->set(SendinblueManager::ACCOUNT_EMAIL, \Drupal::config('sendinblue_config_global.settings')
+        ->get(SendinblueManager::ACCOUNT_EMAIL, ''))
+      ->save();
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS)
+      ->set(SendinblueManager::ACCOUNT_USERNAME, \Drupal::config('sendinblue_config_global.settings')
+        ->get(SendinblueManager::ACCOUNT_USERNAME, ''))
+      ->save();
+
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS)
+      ->set(SendinblueManager::ACCOUNT_DATA, \Drupal::config('sendinblue_config_global.settings')
+        ->get(SendinblueManager::ACCOUNT_DATA, ''))
+      ->save();
+
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS)
+      ->set(SendinblueManager::ACCESS_TOKEN, \Drupal::config('sendinblue_config_global.settings')
+        ->get(SendinblueManager::ACCESS_TOKEN, ''))
+      ->save();
+
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
+      ->set('sendinblue_put_registered_user', \Drupal::config('sendinblue_config_registering_user.settings')
+        ->get('sendinblue_put_registered_user', ''))
+      ->save();
+
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
+      ->set('sendinblue_on', \Drupal::config('sendinblue_config_send_email.settings')
+        ->get('sendinblue_on', ''))
+      ->save();
+
+
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable('sendinblue_config_global.settings')->delete();
+
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable('sendinblue_config_registering_user.settings')->delete();
+
+    \Drupal::getContainer()
+      ->get('config.factory')
+      ->getEditable('sendinblue_config_send_email.settings')->delete();
+  }
