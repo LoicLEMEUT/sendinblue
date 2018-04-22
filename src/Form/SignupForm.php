@@ -64,13 +64,17 @@ class SignupForm extends ContentEntityForm {
     ];
 
     $form['wrap_left']['form']['description'] = [
-      '#type' => 'textarea',
+      '#type' => 'text_format',
       '#title' => t('Description'),
-      '#default_value' => isset($settings['description']) ? $settings['description'] : '',
+      '#default_value' => isset($settings['description']['value']) ? $settings['description']['value'] : '',
       '#rows' => 2,
       '#maxlength' => 500,
       '#description' => t('This description will be shown on the signup form below the title. (500 characters or less)'),
     ];
+
+    if (isset($settings['description']['format'])) {
+      $form['wrap_left']['form']['description']['#format'] = $settings['description']['format'];
+    }
 
     $mode_defaults = [
       SENDINBLUE_SIGNUP_BLOCK => [SENDINBLUE_SIGNUP_BLOCK],

@@ -15,12 +15,11 @@ list subscriptions on a single form
 * Include merge fields on anonymous subscription forms
 
 ## requirements
-* Libraries (https://www.drupal.org/project/libraries)
 * Entity (https://www.drupal.org/project/entity)
 
 ## install
 * Get an API Key from your SendinBlue's account
-* Download the Entity and Libraries modules into your Drupal's libraries folder
+* Download the Entity module into your Drupal's modules folder
 * Download and install the latest version of the plugin
 * Setup you API key on the main page of the plugin
 

@@ -3,6 +3,7 @@
 namespace Drupal\sendinblue;
 
 use Drupal\Component\Serialization\Json;
+use GuzzleHttp\Exception\RequestException;
 
 /**
  * Sendinblue REST client.
@@ -10,6 +11,7 @@ use Drupal\Component\Serialization\Json;
 class SendinblueMailin {
   public $apiKey;
   public $baseUrl;
+  public $client;
   public $curlOpts = [];
 
   /**
@@ -23,9 +25,10 @@ class SendinblueMailin {
   public function __construct($base_url, $api_key) {
     if (!function_exists('curl_init')) {
       $msg = 'SendinBlue requires CURL module';
-      watchdog('sendinblue', $msg, NULL, WATCHDOG_ERROR);
+      \Drupal::logger('sendinblue')->error($msg);
       return;
     }
+    $this->client = \Drupal::httpClient();
     $this->baseUrl = $base_url;
     $this->apiKey = $api_key;
   }
@@ -46,30 +49,31 @@ class SendinblueMailin {
   private function doRequest($resource, $method, $input) {
     if (!function_exists('curl_init')) {
       $msg = 'SendinBlue requires CURL module';
-      watchdog('sendinblue', $msg, NULL, WATCHDOG_ERROR);
+      \Drupal::logger('sendinblue')->error($msg);
       return NULL;
     }
     $called_url = $this->baseUrl . "/" . $resource;
-    $ch = curl_init($called_url);
-    $auth_header = 'api-key:' . $this->apiKey;
-    $content_header = "Content-Type:application/json";
-    // If (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-    // Windows only over-ride because of our api server.
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-    // }.
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [$auth_header, $content_header]);
-    // curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);.
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_HEADER, 0);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $input);
-    $data = curl_exec($ch);
-    if (curl_errno($ch)) {
-      \Drupal::logger('sendinblue')
-        ->error('Curl error: @error', ['@error' => curl_error($ch)]);
+
+    $options = [
+      'headers' => [
+        'api-key' => $this->apiKey,
+        'Content-Type' => 'application/json'
+      ],
+      'verify' => FALSE,
+    ];
+
+    if (!empty($input)) {
+      $options['body'] = $input;
     }
-    curl_close($ch);
-    return Json::decode($data);
+
+    try {
+      $clientRequest = $this->client->request($method, $called_url, $options);
+      $body = $clientRequest->getBody();
+    } catch (RequestException $e) {
+      \Drupal::logger('sendinblue')->error('Curl error: @error', ['@error' => $e->getMessage()]);
+    }
+
+    return Json::decode($body);
   }
 
   /**
@@ -84,31 +88,28 @@ class SendinblueMailin {
   private function doRequestDirect($data) {
     if (!function_exists('curl_init')) {
       $msg = 'SendinBlue requires CURL module';
-      watchdog('sendinblue', $msg, NULL, WATCHDOG_ERROR);
+      \Drupal::logger('sendinblue')->error($msg);
       return NULL;
     }
-    $url = 'http://ws.mailin.fr/';
-    $ch = curl_init();
-    $paramData = '';
+    $called_url = 'http://ws.mailin.fr/';
     $data['source'] = 'Drupal';
-    if (is_array($data)) {
-      foreach ($data as $key => $value) {
-        $paramData .= $key . '=' . urlencode($value) . '&';
-      }
+
+    $options = [
+      'headers' => [
+        'Content-Type' => 'application/json'
+      ],
+      'form_params' => $data,
+      'verify' => FALSE
+    ];
+
+    try {
+      $clientRequest = $this->client->request('POST', $called_url, $options);
+      $body = $clientRequest->getBody();
+    } catch (RequestException $e) {
+      \Drupal::logger('sendinblue')->error('Curl error: @error', ['@error' => $e->getMessage()]);
     }
-    else {
-      $paramData = $data;
-    }
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Expect:']);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $paramData);
-    curl_setopt($ch, CURLOPT_HEADER, 0);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_URL, $url);
-    $data = curl_exec($ch);
-    curl_close($ch);
-    return $data;
+
+    return Json::decode($body);
   }
 
   /**

@@ -19,7 +19,7 @@ class SubscribeForm extends FormBase {
    * @param int $derivativeId
    *   The ID of signupForm.
    */
-  public function __construct($derivativeId) {
+  public function __construct($derivativeId = NULL) {
     $this->signupIp = $derivativeId;
   }
 
@@ -59,7 +59,7 @@ class SubscribeForm extends FormBase {
 
     $form['#attributes'] = ['class' => ['sendinblue-signup-subscribe-form']];
     $form['description'] = [
-      '#plain_text' => $settings['description'],
+      '#markup' => $settings['description']['value'],
     ];
 
     $form['fields'] = [
