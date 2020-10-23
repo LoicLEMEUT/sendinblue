@@ -8,10 +8,20 @@
 use Drupal\sendinblue\SendinblueManager;
 use Drupal\user\UserInterface;
 
-define('SENDINBLUE_SIGNUP_ENTITY', 'sendinblue_signup_form');
-define('SENDINBLUE_SIGNUP_BLOCK', 1);
-define('SENDINBLUE_SIGNUP_PAGE', 2);
-define('SENDINBLUE_SIGNUP_BOTH', 3);
+if (!class_exists('SendinBlue\Client\Configuration')) {
+
+  include_once __DIR__ . '/lib/api-v3-sdk/lib/Model/ModelInterface.php';
+
+  foreach (glob(__DIR__ . '/lib/api-v3-sdk/lib/*.php') as $filename) {
+    include_once $filename;
+  }
+  foreach (glob(__DIR__ . '/lib/api-v3-sdk/lib/Api/*.php') as $filename) {
+    include_once $filename;
+  }
+  foreach (glob(__DIR__ . '/lib/api-v3-sdk/lib/Model/*.php') as $filename) {
+    include_once $filename;
+  }
+}
 
 /**
  * Implements hook_help().
@@ -35,6 +45,7 @@ function sendinblue_theme($existing, $type, $theme, $path) {
     ],
     'generateHomeLogin' => [
       'variables' => [
+        'api_version' => NULL,
         'account_username' => NULL,
         'account_email' => NULL,
         'account_data' => NULL,
@@ -59,9 +70,13 @@ function sendinblue_theme($existing, $type, $theme, $path) {
  * @see hook_page_attachments_alter()
  */
 function sendinblue_page_attachments(array &$attachments) {
-  $attachments['#attached']['library'][] = 'sendinblue/sendinblue.admin-setting';
+  if (\Drupal::service('router.admin_context')->isAdminRoute()) {
+    $route_match = \Drupal::routeMatch();
+    if (strpos($route_match->getRouteName(), 'sendinblue') !== FALSE) {
+      $attachments['#attached']['library'][] = 'sendinblue/sendinblue.admin-setting';
+    }
+  }
 }
-
 
 /**
  * Implements hook_ENTITY_TYPE_insert() for node entities.
@@ -71,20 +86,18 @@ function sendinblue_page_attachments(array &$attachments) {
  * @see \Drupal\node\Tests\NodeSaveTest::testNodeSaveOnInsert()
  */
 function sendinblue_user_insert(UserInterface $user) {
-  $sendinblue_registered_active = \Drupal::config(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
-    ->get('sendinblue_put_registered_user', 0)['active'];
-  $sendinblue_registered_list = \Drupal::config(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
-    ->get('sendinblue_put_registered_user', 0)['list'];
+  /** @var \Drupal\sendinblue\SendinblueManager $sendInBlueManager */
+  $sendInBlueManager = \Drupal::service('sendinblue.manager');
+  /** @var \Drupal\Core\Config\ConfigFactoryInterface $configFactory */
+  $configFactory = \Drupal::service('config.factory');
 
-  if (SendinblueManager::isLoggedInState() && $sendinblue_registered_active) {
-    $response_code = SendinblueManager::subscribeUser($user->getEmail(), ['nom' => $user->getAccountName()], [$sendinblue_registered_list]);
+  $sendinblue_registered_active = $configFactory->get(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
+    ->get('sendinblue_put_registered_user')['active'];
+  $sendinblue_registered_list = $configFactory->get(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
+    ->get('sendinblue_put_registered_user')['list'];
 
-    if ($response_code != 'success') {
-      drupal_set_message('[Sendinblue] - Error (' . $response_code . ') during add contact to list', 'error');
-      return;
-    }
-    else {
-      drupal_set_message('[Sendinblue] - Contact succefully added to list ' . $sendinblue_registered_list);
-    }
+  if ($sendInBlueManager->isLoggedInState() && $sendinblue_registered_active) {
+    $sendInBlueManager->subscribeUser($user->getEmail(), ['nom' => $user->getAccountName()], [$sendinblue_registered_list]);
+    return;
   }
 }

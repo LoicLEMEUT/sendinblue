@@ -2,14 +2,49 @@
 
 namespace Drupal\sendinblue\Form;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\sendinblue\SendinblueManager;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Class Form Transactionnal emails SMTP.
+ * Class Form "Register user in Sib list during registration" on login SiB page.
  */
 class RegisteringUserForm extends ConfigFormBase {
+
+  /**
+   * SendinblueManager.
+   *
+   * @var \Drupal\sendinblue\SendinblueManager
+   */
+  private $sendinblueManager;
+
+  /**
+   * Constructs a \Drupal\system\ConfigFormBase object.
+   *
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
+   *   The factory for configuration objects.
+   * @param \Drupal\sendinblue\SendinblueManager $sendinblueManager
+   *   SendinblueManager.
+   */
+  public function __construct(
+    ConfigFactoryInterface $config_factory,
+    SendinblueManager $sendinblueManager
+  ) {
+    parent::__construct($config_factory);
+    $this->sendinblueManager = $sendinblueManager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('config.factory'),
+      $container->get('sendinblue.manager')
+    );
+  }
 
   /**
    * Returns a unique string identifying the form.
@@ -33,7 +68,7 @@ class RegisteringUserForm extends ConfigFormBase {
    *   The form structure.
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    $sendinblue_lists = SendinblueManager::getLists();
+    $sendinblue_lists = $this->sendinblueManager->getLists();
     $options = [];
     foreach ($sendinblue_lists as $mc_list) {
       $options[$mc_list['id']] = $mc_list['name'];
@@ -45,20 +80,22 @@ class RegisteringUserForm extends ConfigFormBase {
 
     $form['sendinblue_put_registered_user']['active'] = [
       '#type' => 'radios',
-      '#title' => t('Save SendInBlue User ?'),
-      '#default_value' => \Drupal::config(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
-        ->get('sendinblue_put_registered_user', '')['active'],
-      '#description' => t('Register the user in SendInBlue list during registration'),
-      '#options' => [1 => t('Yes'), 0 => t('No')],
+      '#title' => $this->t('Save SendInBlue User ?'),
+      '#default_value' => $this->configFactory()
+        ->get(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
+        ->get('sendinblue_put_registered_user')['active'],
+      '#description' => $this->t('Register the user in SendInBlue list during registration'),
+      '#options' => [1 => $this->t('Yes'), 0 => $this->t('No')],
     ];
 
     $form['sendinblue_put_registered_user']['list'] = [
       '#type' => 'select',
-      '#title' => t('List where subscribers are saved'),
+      '#title' => $this->t('List where subscribers are saved'),
       '#options' => $options,
-      '#default_value' => \Drupal::config(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
-        ->get('sendinblue_put_registered_user', '')['list'],
-      '#description' => t('Select the list where you want to add your new subscribers'),
+      '#default_value' => $this->configFactory()
+        ->get(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)
+        ->get('sendinblue_put_registered_user')['list'],
+      '#description' => $this->t('Select the list where you want to add your new subscribers'),
       '#states' => [
         // Hide unless needed.
         'visible' => [
@@ -69,7 +106,7 @@ class RegisteringUserForm extends ConfigFormBase {
 
     $form['submit'] = [
       '#type' => 'submit',
-      '#value' => t('Save Settings'),
+      '#value' => $this->t('Save Settings'),
     ];
 
     return $form;
@@ -86,9 +123,7 @@ class RegisteringUserForm extends ConfigFormBase {
   public function submitForm(array &$form, FormStateInterface $form_state) {
     $sendinblue_put_registered_user = $form_state->getValue('sendinblue_put_registered_user');
 
-    $config = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER);
+    $config = $this->configFactory()->getEditable(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER);
     $config->set('sendinblue_put_registered_user', $sendinblue_put_registered_user)->save();
 
     parent::submitForm($form, $form_state);

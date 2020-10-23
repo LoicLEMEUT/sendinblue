@@ -13,7 +13,7 @@ sendinblue.admin.sendinblue_list_page:
     _controller: 'Drupal\sendinblue\Controller\SendinblueController::listPage'
   requirements:
     _permission: 'administer sendinblue'
-    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::accessToSsoSib'
 
 sendinblue.admin.sendinblue_campaign_page:
   path: '/admin/config/system/sendinblue/campaigns'
@@ -22,7 +22,7 @@ sendinblue.admin.sendinblue_campaign_page:
     _controller: 'Drupal\sendinblue\Controller\SendinblueController::listCampaigns'
   requirements:
     _permission: 'administer sendinblue'
-    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::accessToSsoSib'
 
 sendinblue.admin.sendinblue_statistic_page:
   path: '/admin/config/system/sendinblue/statistics'
@@ -31,7 +31,7 @@ sendinblue.admin.sendinblue_statistic_page:
     _controller: 'Drupal\sendinblue\Controller\SendinblueController::statisticsPage'
   requirements:
     _permission: 'administer sendinblue'
-    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::access'
+    _custom_access:  '\Drupal\sendinblue\Controller\SendinblueController::accessToSsoSib'
 
 
 entity.sendinblue_signup_form.canonical:

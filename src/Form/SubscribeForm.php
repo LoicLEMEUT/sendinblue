@@ -2,25 +2,70 @@
 
 namespace Drupal\sendinblue\Form;
 
+use Drupal\Component\Utility\EmailValidatorInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Url;
 use Drupal\sendinblue\SendinblueManager;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Subscribe form to signup SendinBlue newsletter.
  */
 class SubscribeForm extends FormBase {
+  /**
+   * The signUp form Id.
+   *
+   * @var string
+   */
   public $signupIp;
 
   /**
-   * Constructor for ComproCustomForm.
+   * EntityTypeManagerInterface.
    *
-   * @param int $derivativeId
-   *   The ID of signupForm.
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
    */
-  public function __construct($derivativeId = NULL) {
-    $this->signupIp = $derivativeId;
+  private $entityTypeManager;
+  /**
+   * EmailValidatorInterface.
+   *
+   * @var \Drupal\Component\Utility\EmailValidatorInterface
+   */
+  private $emailValidator;
+  /**
+   * SendinblueManager.
+   *
+   * @var \Drupal\sendinblue\SendinblueManager
+   */
+  private $sendinblueManager;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __construct(
+    EntityTypeManagerInterface $entityTypeManager,
+    MessengerInterface $messenger,
+    EmailValidatorInterface $emailValidator,
+    SendinblueManager $sendinblueManager
+  ) {
+    $this->entityTypeManager = $entityTypeManager;
+    $this->messenger = $messenger;
+    $this->emailValidator = $emailValidator;
+    $this->sendinblueManager = $sendinblueManager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('entity_type.manager'),
+      $container->get('messenger'),
+      $container->get('email.validator'),
+      $container->get('sendinblue.manager')
+    );
   }
 
   /**
@@ -51,8 +96,8 @@ class SubscribeForm extends FormBase {
       $this->signupIp = $mcsId;
     }
 
-    $entity_manager = \Drupal::entityTypeManager();
-    $signup = $entity_manager->getStorage(SENDINBLUE_SIGNUP_ENTITY)
+    $signup = $this->entityTypeManager
+      ->getStorage(SendinblueManager::SENDINBLUE_SIGNUP_ENTITY)
       ->load($this->signupIp);
     $settings = (!$signup->settings->first()) ? [] : $signup->settings->first()
       ->getValue();
@@ -70,11 +115,11 @@ class SubscribeForm extends FormBase {
 
     if (isset($settings['fields']['mergefields'])) {
       $merge_fields = $settings['fields']['mergefields'];
-      $attributes = SendinblueManager::getAttributeLists();
+      $attributes = $this->sendinblueManager->getAttributeLists();
 
       if (is_array($merge_fields)) {
         foreach ($merge_fields as $key => $value) {
-          if ($key == 'EMAIL') {
+          if ($key === 'EMAIL') {
             $form['fields'][$key] = [
               '#type' => 'textfield',
               '#title' => ($value['label']),
@@ -84,16 +129,20 @@ class SubscribeForm extends FormBase {
           }
           else {
             if (isset($value['check']) && $value['required']) {
+              $enumerations = [];
+              $type = '';
+
               foreach ($attributes as $attribute) {
-                if ($attribute['name'] == $key) {
-                  $type = $attribute['type'];
-                  if ($type == 'category') {
-                    $enumerations = $attribute['enumeration'];
+                if ($attribute->getName() === $key) {
+                  $type = $attribute->getType();
+                  if ($type === 'category') {
+                    $enumerations = $attribute->getEnumeration();
                   }
                   break;
                 }
               }
-              if ($type != 'category') {
+
+              if ($type !== 'category') {
                 $form['fields'][$key] = [
                   '#type' => 'textfield',
                   '#title' => ($value['label']),
@@ -104,7 +153,7 @@ class SubscribeForm extends FormBase {
               else {
                 $options = [];
                 foreach ($enumerations as $enumeration) {
-                  $options[$enumeration['value']] = $enumeration['label'];
+                  $options[$enumeration->getValue()] = $enumeration->getLabel();
                 }
                 $form['fields'][$key] = [
                   '#type' => 'select',
@@ -138,79 +187,59 @@ class SubscribeForm extends FormBase {
    *   The current state of the form.
    */
   public function validateForm(array &$form, FormStateInterface $form_state) {
-    $entity_manager = \Drupal::entityTypeManager();
-    $signup = $entity_manager->getStorage(SENDINBLUE_SIGNUP_ENTITY)
+    $signup = $this->entityTypeManager->getStorage(SendinblueManager::SENDINBLUE_SIGNUP_ENTITY)
       ->load($this->signupIp);
     $settings = (!$signup->settings->first()) ? [] : $signup->settings->first()
       ->getValue();
-    $email_validator = \Drupal::service('email.validator');
 
     $email = $form_state->getValue(['fields', 'EMAIL']);
     $list_id = $settings['subscription']['settings']['list'];
 
-    if (!$email_validator->isValid($email)) {
+    if (!$this->emailValidator->isValid($email)) {
       $form_state->setErrorByName('email', $settings['subscription']['messages']['invalid']);
       return;
     }
 
-    $response = SendinblueManager::validationEmail($email, $list_id);
-    if ($response['code'] == 'invalid') {
+    $response = $this->sendinblueManager->validationEmail($email, $list_id);
+    if ($response['code'] === 'invalid') {
       $form_state->setErrorByName('email', $settings['subscription']['messages']['invalid']);
       return;
     }
-    if ($response['code'] == 'already_exist') {
+    if ($response['code'] === 'already_exist') {
       $form_state->setErrorByName('email', $settings['subscription']['messages']['existing']);
       return;
     }
 
-    $email_confirmation = $settings['subscription']['settings']['email_confirmation'];
-    if ($email_confirmation == '1') {
-      $templage_id = $settings['subscription']['settings']['template'];
-    }
-
     $list_ids = $response['listid'];
-    array_push($list_ids, $list_id);
+    $list_ids[] = $list_id;
 
     $info = [];
-    $attributes = SendinblueManager::getAttributeLists();
+    $attributes = $this->sendinblueManager->getAttributeLists();
 
     foreach ($attributes as $attribute) {
       $field_attribute_name = $form_state->getValue([
         'fields',
-        $attribute['name'],
+        $attribute->getName(),
       ]);
       if (isset($field_attribute_name)) {
-        $info[$attribute['name']] = $form_state->getValue([
+        $info[$attribute->getName()] = $form_state->getValue([
           'fields',
-          $attribute['name'],
+          $attribute->getName(),
         ]);
       }
     }
-    $response_code = SendinblueManager::subscribeUser($email, $info, $list_ids);
-    if ($response_code != 'success') {
-      $form_state->setErrorByName('email', $settings['subscription']['messages']['general']);
-      return;
-    }
+    $this->sendinblueManager->subscribeUser($email, $info, $list_ids);
 
     // Store db.
-    $data = SendinblueManager::getSubscriberByEmail($email);
+    $data = $this->sendinblueManager->getSubscriberByEmail($email);
     if ($data == FALSE) {
-      $uniqid = uniqid();
       $data = [
         'email' => $email,
         'info' => serialize($info),
-        'code' => $uniqid,
+        'code' => uniqid('', TRUE),
         'is_active' => 1,
       ];
-      SendinblueManager::addSubscriberTable($data);
-    }
-    else {
-      $uniqid = $data['code'];
-    }
-
-    // Send confirm email.
-    if ($email_confirmation == '1') {
-      SendinblueManager::sendEmail('confirm', $email, $uniqid, $list_id, '-1', $templage_id);
+      $this->sendinblueManager->addSubscriberTable($data);
     }
   }
 
@@ -223,13 +252,21 @@ class SubscribeForm extends FormBase {
    *   The current state of the form.
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    $entity_manager = \Drupal::entityTypeManager();
-    $signup = $entity_manager->getStorage(SENDINBLUE_SIGNUP_ENTITY)
+    $signup = $this->entityTypeManager->getStorage(SendinblueManager::SENDINBLUE_SIGNUP_ENTITY)
       ->load($this->signupIp);
     $settings = (!$signup->settings->first()) ? [] : $signup->settings->first()
       ->getValue();
 
-    drupal_set_message(($settings['subscription']['messages']['success']));
+    // Send confirm email.
+    $email = $form_state->getValue(['fields', 'EMAIL']);
+    $email_confirmation = $settings['subscription']['settings']['email_confirmation'];
+
+    if ($email_confirmation) {
+      $template_id = $settings['subscription']['settings']['template'];
+      $this->sendinblueManager->sendEmail('confirm', $email, $template_id);
+    }
+
+    $this->messenger->addMessage($settings['subscription']['messages']['success']);
 
     if ($settings['subscription']['settings']['redirect_url'] != '') {
       $form_state->setRedirectUrl(Url::fromUri('internal:/' . $settings['subscription']['settings']['redirect_url']));

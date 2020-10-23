@@ -3,6 +3,7 @@ type: module
 description : SendinBlue email service integration.
 package : SendinBlue
 core : 8.x
+core_version_requirement: ^8 || ^9
 
 libraries:
   - sendinblue/sendinblue.admin-setting

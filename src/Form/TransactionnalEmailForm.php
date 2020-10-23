@@ -2,14 +2,60 @@
 
 namespace Drupal\sendinblue\Form;
 
+use Drupal\Component\Utility\EmailValidator;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\sendinblue\SendinblueManager;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Class Form Transactionnal emails SMTP.
  */
 class TransactionnalEmailForm extends ConfigFormBase {
+  /**
+   * EmailValidatorInterface.
+   *
+   * @var \Drupal\Component\Utility\EmailValidator
+   */
+  private $emailValidator;
+  /**
+   * SendinblueManager.
+   *
+   * @var \Drupal\sendinblue\SendinblueManager
+   */
+  private $sendinblueManager;
+
+  /**
+   * Constructs a \Drupal\system\ConfigFormBase object.
+   *
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
+   *   The factory for configuration objects.
+   * @param \Drupal\Component\Utility\EmailValidator $emailValidator
+   *   EmailValidatorInterface.
+   * @param \Drupal\sendinblue\SendinblueManager $sendinblueManager
+   *   SendinblueManager.
+   */
+  public function __construct(
+    ConfigFactoryInterface $config_factory,
+    EmailValidator $emailValidator,
+    SendinblueManager $sendinblueManager
+  ) {
+    parent::__construct($config_factory);
+    $this->emailValidator = $emailValidator;
+    $this->sendinblueManager = $sendinblueManager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('config.factory'),
+      $container->get('email.validator'),
+      $container->get('sendinblue.manager')
+    );
+  }
 
   /**
    * Returns a unique string identifying the form.
@@ -33,29 +79,17 @@ class TransactionnalEmailForm extends ConfigFormBase {
    *   The form structure.
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    $smtp_details = \Drupal::config(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
-      ->get(SendinblueManager::SMTP_DETAILS, '');
-    $config = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL);
+    $smtpDetails = $this->configFactory()
+      ->get(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
+      ->get(SendinblueManager::SMTP_DETAILS);
 
-    if ($smtp_details == FALSE) {
-      $smtp_details = SendinblueManager::updateSmtpDetails();
-    }
-    if (($smtp_details == FALSE) || ($smtp_details['relay'] == FALSE)) {
-      $config->set('sendinblue_on', 0)->save();
-      $smtp_available = FALSE;
-    }
-    else {
-      $smtp_available = TRUE;
-    }
+    $smtpAvailable = ($smtpDetails !== NULL);
 
-    $form = [];
-    if ($smtp_available == FALSE) {
+    if ($smtpAvailable === FALSE) {
       $form['sendinblue_alert'] = [
         '#type' => 'markup',
         '#prefix' => '<div id="sendinblue_alert_area" style="padding: 10px;background-color: #fef5f1;color: #8c2e0b;border-color: #ed541d;border-width: 1px;border-style: solid;">',
-        '#markup' => t('Current you can not use SendinBlue SMTP. Please confirm at <a href="@smtp-sendinblue" target="_blank">Here</a>', ['@smtp-sendinblue' => 'https://mysmtp.sendinblue.com/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link']),
+        '#markup' => $this->t('Current you can not use SendinBlue SMTP. Please confirm at <a href="@smtp-sendinblue" target="_blank">Here</a>', ['@smtp-sendinblue' => 'https://mysmtp.sendinblue.com/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link']),
         '#suffix' => '</div>',
         '#tree' => TRUE,
       ];
@@ -63,19 +97,20 @@ class TransactionnalEmailForm extends ConfigFormBase {
 
     $form['sendinblue_on'] = [
       '#type' => 'radios',
-      '#title' => t('Send emails through SendinBlue SMTP'),
-      '#default_value' => \Drupal::config(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
-        ->get('sendinblue_on', ''),
-      '#description' => t('Choose "Yes" if you want to use SendinBlue SMTP to send transactional emails.'),
-      '#options' => [1 => t('Yes'), 0 => t('No')],
-      '#disabled' => ($smtp_available == TRUE) ? FALSE : TRUE,
+      '#title' => $this->t('Send emails through SendinBlue SMTP'),
+      '#default_value' => $this->configFactory()
+        ->get(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
+        ->get('sendinblue_on'),
+      '#description' => $this->t('Choose "Yes" if you want to use SendinBlue SMTP to send transactional emails.'),
+      '#options' => [1 => $this->t('Yes'), 0 => $this->t('No')],
+      '#disabled' => ($smtpAvailable === TRUE) ? FALSE : TRUE,
     ];
 
     $form['sendinblue_to_email'] = [
       '#type' => 'textfield',
-      '#title' => t('Enter email to send a test'),
-      '#description' => t('Select here the email address you want to send a test email to.'),
-      '#disabled' => ($smtp_available == TRUE) ? FALSE : TRUE,
+      '#title' => $this->t('Enter email to send a test'),
+      '#description' => $this->t('Select here the email address you want to send a test email to.'),
+      '#disabled' => ($smtpAvailable === TRUE) ? FALSE : TRUE,
       '#states' => [
         // Hide unless needed.
         'visible' => [
@@ -88,8 +123,8 @@ class TransactionnalEmailForm extends ConfigFormBase {
     ];
     $form['submit'] = [
       '#type' => 'submit',
-      '#value' => t('Save Settings'),
-      '#disabled' => ($smtp_available == TRUE) ? FALSE : TRUE,
+      '#value' => $this->t('Save Settings'),
+      '#disabled' => ($smtpAvailable === TRUE) ? FALSE : TRUE,
     ];
 
     return $form;
@@ -99,29 +134,11 @@ class TransactionnalEmailForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function validateForm(array &$form, FormStateInterface $form_state) {
-    $sendinblue_on = $form_state->getValue('sendinblue_on');
-    $config = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL);
+    $sendEmail = $form_state->getValue('sendinblue_to_email');
 
-    $send_email = $form_state->getValue('sendinblue_to_email');
-
-    if ($sendinblue_on == '1') {
-      $smtp_details = \Drupal::config(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)
-        ->get(SendinblueManager::SMTP_DETAILS, '');
-
-      if ($smtp_details == NULL) {
-        $smtp_details = SendinblueManager::updateSmtpDetails();
-      }
-      if ($smtp_details['relay'] == FALSE) {
-        $sendinblue_on = 0;
-      }
-    }
-    $config->set('sendinblue_on', $sendinblue_on)->save();
-
-    if ($send_email != '') {
-      if (!\Drupal::service('email.validator')->isValid($send_email)) {
-        $form_state->setErrorByName('sendinblue_to_email', t('The email address is invalid.'));
+    if (!empty($sendEmail)) {
+      if (!$this->emailValidator->isValid($sendEmail)) {
+        $form_state->setErrorByName('sendinblue_to_email', $this->t('The email address is invalid.'));
         return;
       }
     }
@@ -136,8 +153,17 @@ class TransactionnalEmailForm extends ConfigFormBase {
    *   The current state of the form.
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    $send_email = $form_state->getValue('sendinblue_to_email');
-    SendinblueManager::sendEmail('test', $send_email, '', '');
+    $sendEmail = $form_state->getValue('sendinblue_to_email');
+    $sendinblueOn = $form_state->getValue('sendinblue_on');
+
+    $config = $this->configFactory()->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL);
+    $config->set('sendinblue_on', $sendinblueOn)->save();
+
+    if ((bool) $sendinblueOn) {
+      $this->sendinblueManager->sendEmail('test', $sendEmail);
+
+      $this->sendinblueManager->updateSmtpDetails();
+    }
 
     parent::submitForm($form, $form_state);
   }

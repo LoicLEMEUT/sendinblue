@@ -2,12 +2,18 @@
 
 namespace Drupal\sendinblue\Form;
 
+use Drupal\Component\Datetime\TimeInterface;
 use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Entity\ContentEntityForm;
+use Drupal\Core\Entity\EntityRepositoryInterface;
+use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\Core\Routing\RouteBuilderInterface;
 use Drupal\sendinblue\SendinblueManager;
 use Drupal\Core\Link;
 use Drupal\Core\Url;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Form controller for the content_entity_example entity edit forms.
@@ -15,12 +21,56 @@ use Drupal\Core\Url;
  * @ingroup content_entity_example
  */
 class SignupForm extends ContentEntityForm {
+  /**
+   * RouteBuilderInterface.
+   *
+   * @var \Drupal\Core\Routing\RouteBuilderInterface
+   */
+  private $routeBuilder;
+  /**
+   * SendinblueManager.
+   *
+   * @var \Drupal\sendinblue\SendinblueManager
+   */
+  private $sendinblueManager;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __construct(
+    EntityRepositoryInterface $entity_repository,
+    EntityTypeBundleInfoInterface $entity_type_bundle_info,
+    TimeInterface $time,
+    MessengerInterface $messenger,
+    RouteBuilderInterface $routeBuilder,
+    SendinblueManager $sendinblueManager
+  ) {
+
+    parent::__construct($entity_repository, $entity_type_bundle_info, $time);
+    $this->sendinblueManager = $sendinblueManager;
+    $this->messenger = $messenger;
+    $this->routeBuilder = $routeBuilder;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('entity.repository'),
+      $container->get('entity_type.bundle.info'),
+      $container->get('datetime.time'),
+      $container->get('messenger'),
+      $container->get('router.builder'),
+      $container->get('sendinblue.manager')
+    );
+  }
 
   /**
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    /* @var $entity \Drupal\sendinblue\Entity\Signup */
+    /* @var $entity Signup */
     $form = parent::buildForm($form, $form_state);
     $signup = $this->entity;
     $settings = (!$signup->settings->first()) ? [] : $signup->settings->first()
@@ -38,14 +88,14 @@ class SignupForm extends ContentEntityForm {
     ];
     $form['wrap_left']['form'] = [
       '#type' => 'fieldset',
-      '#title' => t('Form'),
+      '#title' => $this->t('Form'),
       '#collapsible' => TRUE,
       '#collapsed' => FALSE,
     ];
     $form['wrap_left']['form']['title'] = [
       '#type' => 'textfield',
-      '#title' => t('Title'),
-      '#description' => t('The title for this signup form.'),
+      '#title' => $this->t('Title'),
+      '#description' => $this->t('The title for this signup form.'),
       '#size' => 35,
       '#maxlength' => 32,
       '#default_value' => $signup->title->value,
@@ -59,17 +109,17 @@ class SignupForm extends ContentEntityForm {
       '#default_value' => $signup->name->value,
       '#maxlength' => 32,
       '#disabled' => $status,
-      '#description' => t('A unique machine-readable name for this list. It must only contain lowercase letters, numbers, and underscores.'),
+      '#description' => $this->t('A unique machine-readable name for this list. It must only contain lowercase letters, numbers, and underscores.'),
       '#attributes' => ['style' => 'width:200px;'],
     ];
 
     $form['wrap_left']['form']['description'] = [
       '#type' => 'text_format',
-      '#title' => t('Description'),
+      '#title' => $this->t('Description'),
       '#default_value' => isset($settings['description']['value']) ? $settings['description']['value'] : '',
       '#rows' => 2,
       '#maxlength' => 500,
-      '#description' => t('This description will be shown on the signup form below the title. (500 characters or less)'),
+      '#description' => $this->t('This description will be shown on the signup form below the title. (500 characters or less)'),
     ];
 
     if (isset($settings['description']['format'])) {
@@ -77,37 +127,37 @@ class SignupForm extends ContentEntityForm {
     }
 
     $mode_defaults = [
-      SENDINBLUE_SIGNUP_BLOCK => [SENDINBLUE_SIGNUP_BLOCK],
-      SENDINBLUE_SIGNUP_PAGE => [SENDINBLUE_SIGNUP_PAGE],
-      SENDINBLUE_SIGNUP_BOTH => [
-        SENDINBLUE_SIGNUP_BLOCK,
-        SENDINBLUE_SIGNUP_PAGE,
+      SendinblueManager::SENDINBLUE_SIGNUP_BLOCK => [SendinblueManager::SENDINBLUE_SIGNUP_BLOCK],
+      SendinblueManager::SENDINBLUE_SIGNUP_PAGE => [SendinblueManager::SENDINBLUE_SIGNUP_PAGE],
+      SendinblueManager::SENDINBLUE_SIGNUP_BOTH => [
+        SendinblueManager::SENDINBLUE_SIGNUP_BLOCK,
+        SendinblueManager::SENDINBLUE_SIGNUP_PAGE,
       ],
     ];
 
     $form['wrap_left']['form']['mode'] = [
       '#type' => 'checkboxes',
-      '#title' => t('Display Mode') . $signup->mode->value,
+      '#title' => $this->t('Display Mode') . $signup->mode->value,
       '#required' => TRUE,
       '#options' => [
-        SENDINBLUE_SIGNUP_BLOCK => t('Block'),
-        SENDINBLUE_SIGNUP_PAGE => t('Page'),
+        SendinblueManager::SENDINBLUE_SIGNUP_BLOCK => $this->t('Block'),
+        SendinblueManager::SENDINBLUE_SIGNUP_PAGE => $this->t('Page'),
       ],
       '#default_value' => !empty($signup->mode->value) ? $mode_defaults[$signup->mode->value] : [],
     ];
 
     $form['wrap_left']['form']['path'] = [
       '#type' => 'textfield',
-      '#title' => t('Page URL'),
-      '#description' => t('Path to the signup page. ie "newsletter/signup".'),
+      '#title' => $this->t('Page URL'),
+      '#description' => $this->t('Path to the signup page. ie "newsletter/signup".'),
       '#default_value' => isset($settings['path']) ? $settings['path'] : NULL,
       '#states' => [
         // Hide unless needed.
         'visible' => [
-          ':input[name="mode[' . SENDINBLUE_SIGNUP_PAGE . ']"]' => ['checked' => TRUE],
+          ':input[name="mode[' . SendinblueManager::SENDINBLUE_SIGNUP_PAGE . ']"]' => ['checked' => TRUE],
         ],
         'required' => [
-          ':input[name="mode[' . SENDINBLUE_SIGNUP_PAGE . ']"]' => ['checked' => TRUE],
+          ':input[name="mode[' . SendinblueManager::SENDINBLUE_SIGNUP_PAGE . ']"]' => ['checked' => TRUE],
         ],
       ],
       '#attributes' => ['style' => 'width:400px;'],
@@ -116,23 +166,24 @@ class SignupForm extends ContentEntityForm {
     // Fields for organization.
     $form['wrap_left']['fields'] = [
       '#type' => 'fieldset',
-      '#title' => t('Fields'),
+      '#title' => $this->t('Fields'),
       '#tree' => TRUE,
       '#collapsible' => TRUE,
       '#collapsed' => FALSE,
     ];
-    $attributes = SendinblueManager::getAttributeLists();
+    $attributes = $this->sendinblueManager->getAttributeLists();
+
     $form['wrap_left']['fields']['mergefields']['EMAIL']['check'] = [
       '#type' => 'checkbox',
-      '#title' => t('Email'),
+      '#title' => $this->t('Email'),
       '#default_value' => TRUE,
       '#disabled' => TRUE,
     ];
     $form['wrap_left']['fields']['mergefields']['EMAIL']['label'] = [
       '#type' => 'textfield',
-      '#title' => t('Label'),
+      '#title' => $this->t('Label'),
       '#tree' => TRUE,
-      '#default_value' => isset($settings['fields']['mergefields']['EMAIL']['label']) ? $settings['fields']['mergefields']['EMAIL']['label'] : t('Email'),
+      '#default_value' => isset($settings['fields']['mergefields']['EMAIL']['label']) ? $settings['fields']['mergefields']['EMAIL']['label'] : $this->t('Email'),
       '#required' => TRUE,
       '#attributes' => ['style' => 'width:200px;'],
       '#prefix' => '<div class="sendinblue_sub_field">',
@@ -140,7 +191,7 @@ class SignupForm extends ContentEntityForm {
     ];
     $form['wrap_left']['fields']['mergefields']['EMAIL']['required'] = [
       '#type' => 'checkbox',
-      '#title' => t('Required?'),
+      '#title' => $this->t('Required?'),
       '#tree' => TRUE,
       '#default_value' => TRUE,
       '#disabled' => TRUE,
@@ -148,48 +199,45 @@ class SignupForm extends ContentEntityForm {
       '#suffix' => '</div>',
     ];
 
-
     foreach ($attributes as $attribute) {
-      $settings_attribute =
-        (isset($settings['fields']['mergefields'][$attribute['name']])) ?
-          $settings['fields']['mergefields'][$attribute['name']] : NULL;
+      $settings_attribute = $settings['fields']['mergefields'][$attribute->getName()] ?? NULL;
 
-      $form['wrap_left']['fields']['mergefields'][$attribute['name']]['check'] = [
+      $form['wrap_left']['fields']['mergefields'][$attribute->getName()]['check'] = [
         '#type' => 'checkbox',
-        '#title' => $attribute['name'],
+        '#title' => $attribute->getName(),
         '#default_value' => isset($settings_attribute['check']) ? $settings_attribute['check'] : FALSE,
       ];
-      $form['wrap_left']['fields']['mergefields'][$attribute['name']]['label'] = [
+      $form['wrap_left']['fields']['mergefields'][$attribute->getName()]['label'] = [
         '#type' => 'textfield',
-        '#title' => t('Label'),
+        '#title' => $this->t('Label'),
         '#tree' => TRUE,
-        '#default_value' => isset($settings_attribute['label']) ? $settings_attribute['label'] : $attribute['name'],
+        '#default_value' => isset($settings_attribute['label']) ? $settings_attribute['label'] : $attribute->getName(),
         '#required' => TRUE,
         '#states' => [
           // Hide unless needed.
           'visible' => [
-            ':input[name="fields[mergefields][' . $attribute['name'] . '][check]"]' => ['checked' => TRUE],
+            ':input[name="fields[mergefields][' . $attribute->getName() . '][check]"]' => ['checked' => TRUE],
           ],
           'required' => [
-            ':input[name="mode[' . $attribute['name'] . '][check]"]' => ['checked' => TRUE],
+            ':input[name="mode[' . $attribute->getName() . '][check]"]' => ['checked' => TRUE],
           ],
         ],
         '#attributes' => ['style' => 'width:200px;'],
         '#prefix' => '<div class="sendinblue_sub_field">',
         '#suffix' => '</div>',
       ];
-      $form['wrap_left']['fields']['mergefields'][$attribute['name']]['required'] = [
+      $form['wrap_left']['fields']['mergefields'][$attribute->getName()]['required'] = [
         '#type' => 'checkbox',
-        '#title' => t('Required?'),
+        '#title' => $this->t('Required?'),
         '#tree' => TRUE,
-        '#default_value' => isset($settings['fields']['mergefields'][$attribute['name']]['required']) ? $settings_attribute['required'] : FALSE,
+        '#default_value' => isset($settings['fields']['mergefields'][$attribute->getName()]['required']) ? $settings_attribute['required'] : FALSE,
         '#states' => [
           // Hide unless needed.
           'visible' => [
-            ':input[name="fields[mergefields][' . $attribute['name'] . '][check]"]' => ['checked' => TRUE],
+            ':input[name="fields[mergefields][' . $attribute->getName() . '][check]"]' => ['checked' => TRUE],
           ],
           'required' => [
-            ':input[name="mode[' . $attribute['name'] . '][check]"]' => ['checked' => TRUE],
+            ':input[name="mode[' . $attribute->getName() . '][check]"]' => ['checked' => TRUE],
           ],
         ],
         '#prefix' => '<div class="sendinblue_sub_field">',
@@ -199,9 +247,9 @@ class SignupForm extends ContentEntityForm {
 
     $form['wrap_left']['fields']['submit_button'] = [
       '#type' => 'textfield',
-      '#title' => t('Submit Button Label'),
+      '#title' => $this->t('Submit Button Label'),
       '#required' => 'TRUE',
-      '#default_value' => isset($settings['fields']['submit_button']) ? $settings['fields']['submit_button'] : t('Submit'),
+      '#default_value' => isset($settings['fields']['submit_button']) ? $settings['fields']['submit_button'] : $this->t('Submit'),
       '#attributes' => ['style' => 'width:200px;'],
       '#tree' => TRUE,
     ];
@@ -209,58 +257,58 @@ class SignupForm extends ContentEntityForm {
     // Fields Field for organization.
     $form['wrap_left']['subscription'] = [
       '#type' => 'fieldset',
-      '#title' => t('Subscription'),
+      '#title' => $this->t('Subscription'),
       '#tree' => TRUE,
       '#collapsible' => TRUE,
       '#collapsed' => FALSE,
     ];
     $form['wrap_left']['subscription']['settings'] = [
       '#type' => 'fieldset',
-      '#title' => t('Settings'),
+      '#title' => $this->t('Settings'),
       '#tree' => TRUE,
       '#collapsible' => TRUE,
       '#collapsed' => FALSE,
     ];
-    $sendinblue_lists = SendinblueManager::getLists();
+    $sendinblue_lists = $this->sendinblueManager->getLists();
     $options = [];
     foreach ($sendinblue_lists as $mc_list) {
       $options[$mc_list['id']] = $mc_list['name'];
     }
     $form['wrap_left']['subscription']['settings']['list'] = [
       '#type' => 'select',
-      '#title' => t('List where subscribers are saved'),
+      '#title' => $this->t('List where subscribers are saved'),
       '#options' => $options,
       '#default_value' => isset($settings['subscription']['settings']['list']) ? $settings['subscription']['settings']['list'] : '',
-      '#description' => t('Select the list where you want to add your new subscribers'),
+      '#description' => $this->t('Select the list where you want to add your new subscribers'),
       '#attributes' => ['style' => 'width:200px;'],
     ];
     $form['wrap_left']['subscription']['settings']['redirect_url'] = [
       '#type' => 'textfield',
-      '#title' => t('URL redirection'),
+      '#title' => $this->t('URL redirection'),
       '#required' => FALSE,
       '#default_value' => isset($settings['subscription']['settings']['redirect_url']) ? $settings['subscription']['settings']['redirect_url'] : '',
-      '#description' => t('Redirect to this URL after subscription'),
+      '#description' => $this->t('Redirect to this URL after subscription'),
       '#attributes' => ['style' => 'width:400px;'],
     ];
     $form['wrap_left']['subscription']['settings']['email_confirmation'] = [
       '#type' => 'checkbox',
-      '#title' => t('Email confirmation'),
+      '#title' => $this->t('Email confirmation'),
       '#required' => FALSE,
       '#default_value' => isset($settings['subscription']['settings']['email_confirmation']) ? $settings['subscription']['settings']['email_confirmation'] : '',
-      '#description' => t('You can choose to send a confirmation email. You will be able to set up the template & sender that will be sent to your new subscribers'),
+      '#description' => $this->t('You can choose to send a confirmation email. You will be able to set up the template & sender that will be sent to your new subscribers'),
     ];
-    $sendinblue_templates = SendinblueManager::getTemplateList();
+    $sendinblue_templates = $this->sendinblueManager->getTemplateList();
     $options = [];
-    foreach ($sendinblue_templates as $mc_template) {
-      $options[$mc_template['id']] = $mc_template['name'];
+    foreach ($sendinblue_templates->getTemplates() as $mc_template) {
+      $options[$mc_template->getId()] = $mc_template->getName();
     }
     $form['wrap_left']['subscription']['settings']['template'] = [
       '#type' => 'select',
-      '#title' => t('Select Template'),
+      '#title' => $this->t('Select Template'),
       '#options' => $options,
       '#default_value' => isset($settings['subscription']['settings']['template']) ? $settings['subscription']['settings']['template'] : '-1',
-      '#description' => t('Select the template that will be sent to your new subscribers. You can create new template at @SendinBlue.',
-        ['@SendinBlue' => Link::fromTextAndUrl(t('SendinBlue'), Url::fromUri('https://my.sendinblue.com/camp/listing/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link#temp_active_m'))->toString()]),
+      '#description' => $this->t('Select the template that will be sent to your new subscribers. You can create new template at @SendinBlue.',
+        ['@SendinBlue' => Link::fromTextAndUrl($this->t('SendinBlue'), Url::fromUri('https://my.sendinblue.com/camp/listing/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link#temp_active_m'))->toString()]),
       '#states' => [
         // Hide unless needed.
         'visible' => [
@@ -274,41 +322,41 @@ class SignupForm extends ContentEntityForm {
     ];
     $form['wrap_left']['subscription']['messages'] = [
       '#type' => 'fieldset',
-      '#title' => t('Messages'),
+      '#title' => $this->t('Messages'),
       '#tree' => TRUE,
       '#collapsible' => TRUE,
       '#collapsed' => FALSE,
     ];
     $form['wrap_left']['subscription']['messages']['success'] = [
       '#type' => 'textfield',
-      '#title' => t('Success message'),
+      '#title' => $this->t('Success message'),
       '#required' => FALSE,
-      '#default_value' => isset($settings['subscription']['messages']['success']) ? $settings['subscription']['messages']['success'] : t('Thank you, you have successfully registered!'),
-      '#description' => t('Set up the success message that will appear when one of your visitors successfully signs up'),
+      '#default_value' => isset($settings['subscription']['messages']['success']) ? $settings['subscription']['messages']['success'] : $this->t('Thank you, you have successfully registered!'),
+      '#description' => $this->t('Set up the success message that will appear when one of your visitors successfully signs up'),
       '#attributes' => ['style' => 'width:400px;'],
     ];
     $form['wrap_left']['subscription']['messages']['general'] = [
       '#type' => 'textfield',
-      '#title' => t('General error message'),
+      '#title' => $this->t('General error message'),
       '#required' => FALSE,
-      '#default_value' => isset($settings['subscription']['messages']['general']) ? $settings['subscription']['messages']['general'] : t('Something wrong occured'),
-      '#description' => t('Set up the message that will appear when an error occurs during the subscription process'),
+      '#default_value' => isset($settings['subscription']['messages']['general']) ? $settings['subscription']['messages']['general'] : $this->t('Something wrong occured'),
+      '#description' => $this->t('Set up the message that will appear when an error occurs during the subscription process'),
       '#attributes' => ['style' => 'width:400px;'],
     ];
     $form['wrap_left']['subscription']['messages']['existing'] = [
       '#type' => 'textfield',
-      '#title' => t('Existing subscribers'),
+      '#title' => $this->t('Existing subscribers'),
       '#required' => FALSE,
       '#default_value' => isset($settings['subscription']['messages']['existing']) ? $settings['subscription']['messages']['existing'] : 'You have already registered',
-      '#description' => t('Set up the message that will appear when a subscriber is already in your database'),
+      '#description' => $this->t('Set up the message that will appear when a subscriber is already in your database'),
       '#attributes' => ['style' => 'width:400px;'],
     ];
     $form['wrap_left']['subscription']['messages']['invalid'] = [
       '#type' => 'textfield',
-      '#title' => t('Existing subscribers'),
+      '#title' => $this->t('Existing subscribers'),
       '#required' => FALSE,
       '#default_value' => isset($settings['subscription']['messages']['invalid']) ? $settings['subscription']['messages']['invalid'] : 'Your email address is invalid',
-      '#description' => t('Set up the message that will appear when the email address used to sign up is not valid'),
+      '#description' => $this->t('Set up the message that will appear when the email address used to sign up is not valid'),
       '#attributes' => ['style' => 'width:400px;'],
     ];
     // $markup = SendinblueManager::generateSidebar();
@@ -365,7 +413,7 @@ class SignupForm extends ContentEntityForm {
    *   The current state of the form.
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    if (!$form_state->getValue(['mode', SENDINBLUE_SIGNUP_PAGE])) {
+    if (!$form_state->getValue(['mode', SendinblueManager::SENDINBLUE_SIGNUP_PAGE])) {
       $form_state->setValue(['path'], '');
     }
 
@@ -384,12 +432,15 @@ class SignupForm extends ContentEntityForm {
         'subscription' => $form_state->getValue(['subscription']),
       ];
 
+    $this->messenger->addStatus(
+      $this->t('Signup form @name has been saved.', ['@name' => $form_state->getValue(['title'])])
+    );
+
     if (isset($signup_path)) {
       // We have a new (or removed) path. Rebuild menus.
-      \Drupal::service('router.builder')->rebuild();
+      $this->routeBuilder->rebuild();
     }
-    drupal_set_message(t('Signup form @name has been saved.',
-      ['@name' => $form_state->getValue(['title'])]));
+
     $form_state->setRedirect('admin/config/system/sendinblue/signup');
 
     parent::submitForm($form, $form_state);

@@ -35,5 +35,5 @@ xmlrpc.php
 /scripts
 /themes
 
-# Ignore phpstorm files
-.idea/
+# Ignore system specific files
+.DS_store

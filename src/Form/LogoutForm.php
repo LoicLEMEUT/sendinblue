@@ -35,7 +35,7 @@ class LogoutForm extends ConfigFormBase {
   public function buildForm(array $form, FormStateInterface $form_state) {
     $form['submit'] = [
       '#type' => 'submit',
-      '#value' => t('Logout Sendinblue'),
+      '#value' => $this->t('Logout Sendinblue'),
     ];
 
     return $form;
@@ -50,18 +50,10 @@ class LogoutForm extends ConfigFormBase {
    *   The current state of the form.
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS)->delete();
+    $this->configFactory->getEditable(SendinblueManager::CONFIG_SETTINGS)->delete();
+    $this->configFactory->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)->delete();
+    $this->configFactory->getEditable(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)->delete();
 
-    \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS_SEND_EMAIL)->delete();
-
-    \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)->delete();
-    
     parent::submitForm($form, $form_state);
   }
 

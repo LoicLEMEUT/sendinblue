@@ -2,19 +2,41 @@
 
 namespace Drupal\sendinblue;
 
+use Drupal\Component\Serialization\Json;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Database\Connection;
+use Drupal\Core\Form\FormBuilderInterface;
+use Drupal\Core\Mail\MailManagerInterface;
+use Drupal\Core\Render\Renderer;
+use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\sendinblue\Form\ConfigurationSendinblueForm;
 use Drupal\sendinblue\Form\LogoutForm;
 use Drupal\sendinblue\Form\RegisteringUserForm;
 use Drupal\sendinblue\Form\TransactionnalEmailForm;
+use Drupal\sendinblue\Tools\Api\SendInBlueApiInterface;
+use Drupal\sendinblue\Tools\Api\SendinblueApiV2;
+use Drupal\sendinblue\Tools\Api\SendinblueApiV3;
 
 /**
  * Basic manager of module.
  */
 class SendinblueManager {
+
+  use StringTranslationTrait;
+
+  const SENDINBLUE_SIGNUP_ENTITY = 'sendinblue_signup_form';
+  const SENDINBLUE_SIGNUP_BLOCK = 1;
+  const SENDINBLUE_SIGNUP_PAGE = 2;
+  const SENDINBLUE_SIGNUP_BOTH = 3;
+
+  const SENDINBLUE_API_VERSION_V2 = 'v2';
+  const SENDINBLUE_API_VERSION_V3 = 'v3';
+
   /**
-   * The request url of Sendinblue api.
+   * Variable name of Sendinblue URL.
    */
-  const API_URL = 'https://api.sendinblue.com/v2.0';
+  const SIB_URL = 'https://my.sendinblue.com';
 
   /**
    * Variable name of Sendinblue access key.
@@ -57,125 +79,273 @@ class SendinblueManager {
   const ACCESS_TOKEN = 'sendinblue_access_token';
 
   /**
-   * Variable name of attribute lists.
-   */
-  const ATTRIBUTE_LISTS = 'sendinblue_attribute_lists';
-
-  /**
    * Variable name of smtp details.
    */
   const SMTP_DETAILS = 'sendinblue_smtp_details';
 
   /**
-   * Get the access key store in configuration.
+   * ConfigFactoryInterface.
+   *
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
    */
-  public static function getAccessKey() {
-    return \Drupal::config(self::CONFIG_SETTINGS)
-      ->get(self::ACCESS_KEY, '');
+  private $configFactory;
+  /**
+   * FormBuilderInterface.
+   *
+   * @var \Drupal\Core\Form\FormBuilderInterface
+   */
+  private $formBuilder;
+  /**
+   * Renderer.
+   *
+   * @var \Drupal\Core\Render\Renderer
+   */
+  private $renderer;
+  /**
+   * SendinblueMailin.
+   *
+   * @var \Drupal\sendinblue\Tools\Api\SendInBlueApiInterface
+   */
+  private $sendinblueMailin;
+  /**
+   * Connection.
+   *
+   * @var \Drupal\Core\Database\Connection
+   */
+  private $connection;
+  /**
+   * MailManagerInterface.
+   *
+   * @var \Drupal\Core\Mail\MailManagerInterface
+   */
+  private $mailManager;
+  /**
+   * AccountProxyInterface.
+   *
+   * @var \Drupal\Core\Session\AccountProxyInterface
+   */
+  private $accountProxy;
+  /**
+   * SendinblueApi V2.
+   *
+   * @var \Drupal\sendinblue\Tools\Api\SendinblueApiV2
+   */
+  private $sendinblueApiV2;
+  /**
+   * SendinblueApi V3.
+   *
+   * @var \Drupal\sendinblue\Tools\Api\SendinblueApiV3
+   */
+  private $sendinblueApiV3;
+
+  /**
+   * EntityModerationForm constructor.
+   *
+   * @param \Drupal\sendinblue\Tools\Api\SendinblueApiV2 $sendinblueApiV2
+   *   SendinblueMailin.
+   * @param \Drupal\sendinblue\Tools\Api\SendinblueApiV3 $sendinblueApiV3
+   *   SendinblueMailin.
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
+   *   ConfigFactoryInterface.
+   * @param \Drupal\Core\Database\Connection $connection
+   *   Connection.
+   * @param \Drupal\Core\Form\FormBuilderInterface $formBuilder
+   *   FormBuilderInterface.
+   * @param \Drupal\Core\Render\Renderer $renderer
+   *   Renderer.
+   * @param \Drupal\Core\Mail\MailManagerInterface $mailManager
+   *   MailManagerInterface.
+   * @param \Drupal\Core\Session\AccountProxyInterface $accountProxy
+   *   AccountProxyInterface.
+   */
+  public function __construct(
+    SendinblueApiV2 $sendinblueApiV2,
+    SendinblueApiV3 $sendinblueApiV3,
+    ConfigFactoryInterface $configFactory,
+    Connection $connection,
+    FormBuilderInterface $formBuilder,
+    Renderer $renderer,
+    MailManagerInterface $mailManager,
+    AccountProxyInterface $accountProxy
+  ) {
+    $this->configFactory = $configFactory;
+    $this->connection = $connection;
+    $this->formBuilder = $formBuilder;
+    $this->renderer = $renderer;
+    $this->mailManager = $mailManager;
+    $this->accountProxy = $accountProxy;
+    $this->sendinblueApiV2 = $sendinblueApiV2;
+    $this->sendinblueApiV3 = $sendinblueApiV3;
+
+    $this->updateSendinblueMailin($this->getAccessKey());
+  }
+
+  /**
+   * Get the access key store in configuration.
+   *
+   * @return string
+   *   The SiB access key
+   */
+  public function getAccessKey() {
+    return $this->configFactory->get(self::CONFIG_SETTINGS)->get(self::ACCESS_KEY);
+  }
+
+  /**
+   * Get the access key store in configuration.
+   *
+   * @param string $accessKey
+   *   The SiB access key.
+   *
+   * @return string
+   *   The SiB API version (V2 or V3)
+   */
+  public function getApiVersion($accessKey) {
+    if (strlen($accessKey) > 20 && strpos($accessKey, 'xkeysib') !== FALSE) {
+      return self::SENDINBLUE_API_VERSION_V3;
+    }
+    return self::SENDINBLUE_API_VERSION_V2;
+  }
+
+  /**
+   * Get the correct Class in function of API version.
+   *
+   * @return \Drupal\sendinblue\Tools\Api\SendInBlueApiInterface
+   *   SendInBlueApiInterface (V2 or V3)
+   */
+  public function getSendinblueMailin(): SendInBlueApiInterface {
+    return $this->sendinblueMailin;
+  }
+
+  /**
+   * Change Class Class in function of API version.
+   *
+   * @param string $accessKey
+   *   The SiB access key.
+   *
+   * @return \Drupal\sendinblue\Tools\Api\SendInBlueApiInterface
+   *   SendInBlueApiInterface (V2 or V3)
+   */
+  public function updateSendinblueMailin($accessKey) {
+    if ($this->getApiVersion($accessKey) === self::SENDINBLUE_API_VERSION_V3) {
+      $this->sendinblueMailin = $this->sendinblueApiV3;
+    }
+    else {
+      $this->sendinblueMailin = $this->sendinblueApiV2;
+    }
+
+    $this->sendinblueMailin->setApiKey($accessKey);
+
+    return $this->sendinblueMailin;
   }
 
   /**
    * Get the account email store in configuration.
+   *
+   * @return string
+   *   The SiB account email
    */
-  public static function getAccountEmail() {
-    return \Drupal::config(self::CONFIG_SETTINGS)
-      ->get(self::ACCOUNT_EMAIL, '');
+  public function getAccountEmail() {
+    return $this->configFactory->get(self::CONFIG_SETTINGS)->get(self::ACCOUNT_EMAIL);
   }
 
   /**
    * Get the account username store in configuration.
+   *
+   * @return string
+   *   The SiB account username
    */
-  public static function getAccountUsername() {
-    return \Drupal::config(self::CONFIG_SETTINGS)
-      ->get(self::ACCOUNT_USERNAME, '');
+  public function getAccountUsername() {
+    return $this->configFactory->get(self::CONFIG_SETTINGS)->get(self::ACCOUNT_USERNAME);
   }
 
   /**
    * Get the data account store in configuration.
+   *
+   * @return string
+   *   The SiB account store
    */
-  public static function getAccountData() {
-    return \Drupal::config(self::CONFIG_SETTINGS)
-      ->get(self::ACCOUNT_DATA, '');
+  public function getAccountData() {
+    return $this->configFactory->get(self::CONFIG_SETTINGS)->get(self::ACCOUNT_DATA);
+  }
+
+  /**
+   * Get the data account store in configuration.
+   *
+   * @return string
+   *   The SiB account store
+   */
+  public function getSmtpDetails() {
+    return $this->configFactory->get(self::CONFIG_SETTINGS_SEND_EMAIL)->get(self::SMTP_DETAILS);
   }
 
   /**
    * Get the access token store in configuration.
+   *
+   * @return string
+   *   The SiB access token
    */
-  public static function getAccessKeyToken() {
-    return \Drupal::config(self::CONFIG_SETTINGS)
-      ->get(self::ACCESS_TOKEN, '');
+  public function getAccessKeyToken() {
+    return $this->configFactory->get(self::CONFIG_SETTINGS)->get(self::ACCESS_TOKEN);
   }
 
   /**
    * Generate Home layout of Log out.
    *
-   * @return string
+   * @return array
    *   A html of home page when log out.
    */
-  public static function generateHomeLogout() {
-    $form = \Drupal::formBuilder()
-      ->getForm(ConfigurationSendinblueForm::class);
-    return [
-      '#formulaire_api_key' => \Drupal::service('renderer')->render($form),
-    ];
+  public function generateHomeLogout() {
+    $form = $this->formBuilder->getForm(ConfigurationSendinblueForm::class);
+
+    return ['#formulaire_api_key' => $this->renderer->render($form)];
   }
 
   /**
    * Generate Home layout of Log out.
    *
-   * @return string
+   * @return array
    *   A html of home page when login.
    */
-  public static function generateHomeLogin() {
-    $accesss_key = self::getAccessKey();
-
-    $mailin = new SendinblueMailin(self::API_URL, $accesss_key);
+  public function generateHomeLogin() {
 
     // Calculate total count of subscribers.
-    $list_response = $mailin->getLists();
-    if ($list_response['code'] != 'success') {
-      $total_subscribers = 0;
-    }
-    else {
-      $list_datas = $list_response['data'];
-      $list_ids = [];
-      foreach ($list_datas as $list_data) {
-        $list_ids[] = $list_data['id'];
+    $lists = $this->sendinblueMailin->getLists();
+    $totalSubscribers = 0;
+    $listIds = [];
+
+    if ($lists->getCount() > 0) {
+      $listData = $lists->getLists();
+      foreach ($listData as $list) {
+        $listIds[] = $list['id'];
       }
-      $user_response = $mailin->displayListUsers($list_ids, 1, 500);
-      $total_subscribers = intval($user_response['data']['total_list_records']);
+
+      $totalSubscribers = $this->sendinblueMailin->countUserlists($listIds);
     }
 
     // Get account details.
-    $account_email = self::getAccountEmail();
-    $account_username = self::getAccountUsername();
-    $account_data = self::getAccountData();
+    $accountEmail = $this->getAccountEmail();
+    $accountUsername = $this->getAccountUsername();
+    $account_data = Json::decode($this->getAccountData());
 
-    $sendinblue_logout_form = \Drupal::formBuilder()
-      ->getForm(LogoutForm::class);
+    $sendinblue_logout_form = $this->formBuilder->getForm(LogoutForm::class);
+    $sendinblue_send_email_form = $this->formBuilder->getForm(TransactionnalEmailForm::class);
+    $sendinblue_user_register_form = $this->formBuilder->getForm(RegisteringUserForm::class);
 
-    $sendinblue_send_email_form = \Drupal::formBuilder()
-      ->getForm(TransactionnalEmailForm::class);
-
-    $sendinblue_user_register_form = \Drupal::formBuilder()
-      ->getForm(RegisteringUserForm::class);
     return [
       '#account_username' => [
-        '#plain_text' => $account_username,
+        '#plain_text' => $accountUsername,
       ],
       '#account_email' => [
-        '#plain_text' => $account_email,
+        '#plain_text' => $accountEmail,
       ],
       '#total_subscribers' => [
-        '#plain_text' => $total_subscribers,
+        '#plain_text' => $totalSubscribers,
       ],
       '#account_data' => $account_data,
-      '#sendinblue_logout_form' => \Drupal::service('renderer')
-        ->render($sendinblue_logout_form),
-      '#sendinblue_send_email_form' => \Drupal::service('renderer')
-        ->render($sendinblue_send_email_form),
-      '#sendinblue_user_register_form' => \Drupal::service('renderer')
-        ->render($sendinblue_user_register_form),
+      '#api_version' => $this->getApiVersion($this->getAccessKey()),
+      '#sendinblue_logout_form' => $this->renderer->render($sendinblue_logout_form),
+      '#sendinblue_send_email_form' => $this->renderer->render($sendinblue_send_email_form),
+      '#sendinblue_user_register_form' => $this->renderer->render($sendinblue_user_register_form),
     ];
 
   }
@@ -186,9 +356,9 @@ class SendinblueManager {
    * @return string
    *   A html of list page.
    */
-  public static function generateListLogin() {
-    $access_token = self::updateAccessToken();
-    return 'https://my.sendinblue.com/lists/index/access_token/' . ($access_token);
+  public function generateListLogin() {
+    $access_token = $this->updateAccessToken();
+    return sprintf(self::SIB_URL . '/lists/index/access_token/%s', $access_token);
   }
 
   /**
@@ -197,9 +367,10 @@ class SendinblueManager {
    * @return string
    *   A html of campaign.
    */
-  public static function generateCampaignLogin() {
-    $access_token = self::updateAccessToken();
-    return 'https://my.sendinblue.com/camp/listing/access_token/' . ($access_token);
+  public function generateCampaignLogin() {
+    $access_token = $this->updateAccessToken();
+    return sprintf(self::SIB_URL . '/camp/listing/access_token/%s', $access_token);
+
   }
 
   /**
@@ -208,9 +379,9 @@ class SendinblueManager {
    * @return string
    *   A html of statistic page.
    */
-  public static function generateStatisticLogin() {
-    $access_token = self::updateAccessToken();
-    return 'https://my.sendinblue.com/camp/message/access_token/' . ($access_token);
+  public function generateStatisticLogin() {
+    $access_token = $this->updateAccessToken();
+    return sprintf(self::SIB_URL . '/camp/message/access_token/%s', $access_token);
   }
 
   /**
@@ -219,9 +390,9 @@ class SendinblueManager {
    * @return bool
    *   A status of login of user.
    */
-  public static function isLoggedInState() {
-    $access_key = self::getAccessKey();
-    if ($access_key != '') {
+  public function isLoggedInState() {
+    $access_key = $this->getAccessKey();
+    if (!empty($access_key)) {
       return TRUE;
     }
     return FALSE;
@@ -233,22 +404,12 @@ class SendinblueManager {
    * @return string
    *   An access token information.
    */
-  public static function updateAccessToken() {
-    $config = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable('sendinblue.settings');
-
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-
-    // If exist old access_token, delete it.
-    $old_access_token = $config->get(self::ACCESS_TOKEN, '');
-
-    $mailin->deleteToken($old_access_token);
+  public function updateAccessToken() {
+    $config = $this->configFactory->getEditable('sendinblue.settings');
 
     // Get new access_token.
-    $access_response = $mailin->getAccessTokens();
-    $access_token = $access_response['data']['access_token'];
+    $access_token = $this->sendinblueMailin->getAccessTokens();
+
     $config->set(self::ACCESS_TOKEN, $access_token);
     return $access_token;
   }
@@ -262,7 +423,7 @@ class SendinblueManager {
    * @return array
    *   An array of email content.
    */
-  public static function getEmailTemplate($type = 'test') {
+  public function getEmailTemplate($type = 'test') {
     $file = 'temp';
     $file_path = drupal_get_path('module', 'sendinblue') . '/asset/email-templates/' . $type . '/';
     // Get html content.
@@ -283,85 +444,52 @@ class SendinblueManager {
    *   A type of email.
    * @param string $to_email
    *   A recipe address.
-   * @param string $code
-   *   A activate code.
-   * @param int $list_id
-   *   A list identification.
-   * @param string $sender_id
-   *   A sender identification.
    * @param string $template_id
    *   A template identification.
    */
-  public static function sendEmail($type, $to_email, $code, $list_id, $sender_id = '-1', $template_id = '-1') {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-
-    $account_email = self::getAccountEmail();
-    $account_username = self::getAccountUsername();
+  public function sendEmail($type, $to_email, $template_id = '-1') {
+    $subjects = [
+      'confirm' => $this->t('Subscription confirmed'),
+      'test' => $this->t('[SendinBlue SMTP] test email'),
+    ];
+    $account_email = $this->getAccountEmail();
+    $account_username = $this->getAccountUsername();
 
     // Set subject info.
-    if ($type == 'confirm') {
-      $subject = t('Subscription confirmed');
-    }
-    elseif ($type == "double-optin") {
-      $subject = t('Please confirm subscription');
-    }
-    elseif ($type == 'test') {
-      $subject = t('[SendinBlue SMTP] test email');
-    }
-
-    $sender_email = $account_email;
-    $sender_name = $account_username;
-
-    if ($sender_email == '') {
-      $sender_email = t('no-reply@sendinblue.com');
-      $sender_name = t('SendinBlue');
-    }
+    $subject = $subjects[$type] ?? '[SendinBlue]';
+    $sender_email = !empty($account_email) ? $account_email : $this->t('no-reply@sendinblue.com');
+    $sender_name = !empty($account_username) ? $account_username : $this->t('SendinBlue');
 
     // Get template html and text.
-    $template_contents = self::getEmailTemplate($type);
+    $template_contents = $this->getEmailTemplate($type);
     $html_content = $template_contents['html_content'];
     $text_content = $template_contents['text_content'];
 
-    if ($type == "confirm" && $template_id != '-1') {
-      $response = $mailin->getCampaign($template_id);
-      if ($response['code'] == 'success') {
-        $html_content = $response['data'][0]['html_content'];
-        $subject = $response['data'][0]['subject'];
-        if (($response['data'][0]['from_name'] != '[DEFAULT_FROM_NAME]') &&
-          ($response['data'][0]['from_email'] != '[DEFAULT_FROM_EMAIL]') &&
-          ($response['data'][0]['from_email'] != '')
-        ) {
-          $sender_name = $response['data'][0]['from_name'];
-          $sender_email = $response['data'][0]['from_email'];
+    if ($type === "confirm" && $template_id !== '-1') {
+      $template = $this->sendinblueMailin->getTemplate($template_id);
+
+      if ($template !== NULL) {
+        $html_content = $template->getHtmlContent();
+        $subject = $template->getSubject();
+
+        if (($template->getFromName() !== '[DEFAULT_FROM_NAME]') && ($template->getFromEmail() !== '[DEFAULT_FROM_EMAIL]')) {
+          $sender_name = $template->getFromName();
+          $sender_email = $template->getFromEmail();
         }
       }
     }
 
     // Send mail.
-    $to = [$to_email => ''];
-    $from = [$sender_email, $sender_name];
-    $null_array = [];
-    $base_url = self::getBaseUrl();
-    $site_domain = str_replace('https://', '', $base_url);
-    $site_domain = str_replace('http://', '', $site_domain);
+    $replyTo = ['email' => $sender_email, 'name' => $sender_name];
+    $from = ['email' => $sender_email, 'name' => $sender_name];
+    $to = ['email' => $to_email];
 
-    $html_content = str_replace('{title}', $subject, $html_content);
-    $html_content = str_replace('{site_domain}', $site_domain, $html_content);
+    $base_url = $this->getBaseUrl();
+    $site_domain = str_replace(['https://', 'http://'], '', $base_url);
+    $html_content = str_replace(['{title}', '{site_domain}'], [$subject, $site_domain], $html_content);
+    $text_content = str_replace('{site_domain}', $base_url, $text_content);
 
-    $text_content = str_replace('{site_domain}', self::getBaseUrl(), $text_content);
-    $activate_email = \Drupal::config(self::CONFIG_SETTINGS_SEND_EMAIL)
-      ->get('sendinblue_on', '');
-    if ($activate_email == '1') {
-      $headers = [];
-      $mailin->sendEmail($to, $subject, $from, $html_content, $text_content, $null_array, $null_array, $from, $null_array, $headers);
-    }
-    else {
-      $headers = 'MIME-Version: 1.0' . "\r\n";
-      $headers .= 'Content-type: text/html; charset=iso-8859-1' . "\r\n";
-      $headers .= 'From: ' . $sender_name . ' <' . $sender_email . '>' . "\r\n";
-      mail($to_email, $subject, $html_content, $headers);
-    }
+    $this->sendinblueMailin->sendEmail($to, $subject, $html_content, $text_content, $from, $replyTo);
   }
 
   /**
@@ -370,7 +498,7 @@ class SendinblueManager {
    * @return string
    *   A base url of the site.
    */
-  public static function getBaseUrl() {
+  public function getBaseUrl() {
     global $base_url;
     return $base_url;
   }
@@ -378,20 +506,21 @@ class SendinblueManager {
   /**
    * Get Attribute lists.
    *
-   * @return array
+   * @return \Drupal\sendinblue\Tools\Model\GetAttributesAttributes[]
    *   An array of attributes.
    */
-  public static function getAttributeLists() {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->getAttributes();
-    $config = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable('sendinblue.settings');
+  public function getAttributeLists() {
+    $sibAttributes = $this->sendinblueMailin->getAttributes();
 
-    if (($response['code'] == 'success') && (is_array($response['data']))) {
-      $attributes = array_merge($response['data']['normal_attributes'], $response['data']['category_attributes']);
-      $config->set(self::ATTRIBUTE_LISTS, $attributes);
+    if (!empty($sibAttributes->getAttributes())) {
+      $attributes = [];
+
+      foreach ($sibAttributes->getAttributes() as $attribute) {
+        if ($attribute->getCategory() === 'normal') {
+          $attributes[] = $attribute;
+        }
+      }
+
       return $attributes;
     }
     return [];
@@ -400,28 +529,11 @@ class SendinblueManager {
   /**
    * Get template list.
    *
-   * @return array
+   * @return \Drupal\sendinblue\Tools\Model\GetSmtpTemplates
    *   An array of template.
    */
-  public static function getTemplateList() {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->getCampaigns('template');
-    $templates = [
-      [
-        'id' => '-1',
-        'name' => 'Default',
-      ],
-    ];
-    if (($response['code'] == 'success') && (is_array($response['data']))) {
-      foreach ($response['data']['campaign_records'] as $template) {
-        $templates[] = [
-          'id' => $template['id'],
-          'name' => $template['campaign_name'],
-        ];
-      }
-    }
-    return $templates;
+  public function getTemplateList() {
+    return $this->sendinblueMailin->getTemplates();
   }
 
   /**
@@ -430,13 +542,13 @@ class SendinblueManager {
    * @return array
    *   An array of lists.
    */
-  public static function getLists() {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->getLists();
-    if (($response['code'] == 'success') && (is_array($response['data']))) {
-      return $response['data'];
+  public function getLists() {
+    $lists = $this->sendinblueMailin->getLists();
+
+    if ($lists !== NULL) {
+      return $lists->getLists();
     }
+
     return [];
   }
 
@@ -449,36 +561,10 @@ class SendinblueManager {
    * @return string
    *   A list name.
    */
-  public static function getListNameById($list_id) {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->getList($list_id);
-    if (($response['code'] == 'success') && (is_array($response['data']))) {
-      return $response['data']['name'];
-    }
-    return '';
-  }
+  public function getListNameById($list_id) {
+    $list = $this->sendinblueMailin->getList($list_id);
 
-  /**
-   * Get sender list.
-   *
-   * @return array
-   *   An array of senders.
-   */
-  public static function getSenderList() {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->getSenders('');
-    $senders = [['id' => '-1', 'name' => 'Default']];
-    if (($response['code'] == 'success') && (is_array($response['data']))) {
-      foreach ($response['data'] as $sender) {
-        $senders[] = [
-          'id' => $sender['from_email'],
-          'name' => $sender['from_email'],
-        ];
-      }
-    }
-    return $senders;
+    return $list !== NULL ? $list->getName() : NULL;
   }
 
   /**
@@ -492,11 +578,9 @@ class SendinblueManager {
    * @return array
    *   A response information.
    */
-  public static function validationEmail($email, $list_id) {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->getUser($email);
-    if ($response['code'] == 'failure') {
+  public function validationEmail($email, $list_id) {
+    $contactInfo = $this->sendinblueMailin->getUser($email);
+    if ($contactInfo === NULL) {
       $ret = [
         'code' => 'success',
         'listid' => [],
@@ -504,30 +588,29 @@ class SendinblueManager {
       return $ret;
     }
 
-    $listid = $response['data']['listid'];
-    if (!is_array($listid)) {
-      $listid = [];
-    }
-    if ($response['data']['blacklisted'] == 1) {
+    $listId = $contactInfo->getListIds();
+
+    if ($contactInfo->isEmailBlacklisted()) {
       $ret = [
         'code' => 'update',
-        'listid' => $listid,
+        'listid' => $listId,
       ];
     }
     else {
-      if (!in_array($list_id, $listid)) {
+      if (!in_array($list_id, $listId)) {
         $ret = [
           'code' => 'success',
-          'listid' => $listid,
+          'listid' => $listId,
         ];
       }
       else {
         $ret = [
           'code' => 'already_exist',
-          'listid' => $listid,
+          'listid' => $listId,
         ];
       }
     }
+
     return $ret;
   }
 
@@ -540,15 +623,9 @@ class SendinblueManager {
    *   A data of subscriber.
    * @param array $listids
    *   An array of list id.
-   *
-   * @return string
-   *   A response information.
    */
-  public static function subscribeUser($email, $info = [], $listids = []) {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->createUpdateUser($email, $info, 0, $listids, NULL);
-    return $response['code'];
+  public function subscribeUser($email, array $info = [], array $listids = []) {
+    $this->sendinblueMailin->createUpdateUser($email, $info, [], $listids, NULL);
   }
 
   /**
@@ -560,8 +637,8 @@ class SendinblueManager {
    * @return string
    *   A details of subscriber.
    */
-  public static function getSubscriberByEmail($email) {
-    $record = \Drupal::database()->select('sendinblue_contact', 'c')
+  public function getSubscriberByEmail($email) {
+    $record = $this->connection->select('sendinblue_contact', 'c')
       ->fields('c', ['email'])
       ->condition('c.email', $email)
       ->execute()->fetchAssoc();
@@ -575,8 +652,8 @@ class SendinblueManager {
    * @param array $data
    *   A data to add in table.
    */
-  public static function addSubscriberTable($data = []) {
-    \Drupal::database()->insert('sendinblue_contact')->fields(
+  public function addSubscriberTable(array $data = []) {
+    $this->connection->insert('sendinblue_contact')->fields(
       [
         'email' => $data['email'],
         'info' => $data['info'],
@@ -592,33 +669,29 @@ class SendinblueManager {
    * @return string|bool
    *   A access token if exist, else 0.
    */
-  public static function updateSmtpDetails() {
-    $access_key = self::getAccessKey();
-    $mailin = new SendinblueMailin(self::API_URL, $access_key);
-    $response = $mailin->getSmtpDetails();
-    $config = \Drupal::getContainer()
-      ->get('config.factory')
-      ->getEditable(self::CONFIG_SETTINGS_SEND_EMAIL);
+  public function updateSmtpDetails() {
+    $smtpDetails = $this->sendinblueMailin->getSmtpDetails();
 
-    if ($response['code'] == 'success') {
-      if ($response['data']['relay_data']['status'] == 'enabled') {
-        $smtp_details = $response['data']['relay_data']['data'];
-        $config->set(self::SMTP_DETAILS, $smtp_details)->save();
-        return $smtp_details;
-      }
-      else {
-        $smtp_details = [
-          'relay' => FALSE,
-        ];
-        $config->set('sendinblue_on', 0)->save();
-        $config->set(self::SMTP_DETAILS, $smtp_details)->save();
-        return $smtp_details;
-      }
+    $config = $this->configFactory->getEditable(self::CONFIG_SETTINGS_SEND_EMAIL);
+    $drupalEmailconfig = $this->configFactory->getEditable('system.mail');
+
+    if ($smtpDetails->isEnabled()) {
+      // Set SendinBlue SMTP on ON.
+      $config->set('sendinblue_on', 1)->save();
+      $config->set(self::SMTP_DETAILS, Json::encode($smtpDetails))->save();
+      // Set DRUPAL SMTP on ON with SiB.
+      $drupalEmailconfig->set('interface.default', 'sendinblue_mail')->save();
+
+      return $smtpDetails;
     }
 
-    return FALSE;
+    // Set SendinBlue SMTP on OFF.
+    $config->set('sendinblue_on', 0)->save();
+    $config->set(self::SMTP_DETAILS, NULL)->save();
+    // Set DRUPAL SMTP on OFF with SiB, reset with php_mail.
+    $drupalEmailconfig->set('interface.default', 'php_mail')->save();
+
+    return NULL;
   }
-
-
 
 }

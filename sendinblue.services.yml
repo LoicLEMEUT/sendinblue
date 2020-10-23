@@ -1,0 +1,20 @@
+services:
+  sendinblue.api.http_client:
+    class: Drupal\sendinblue\Tools\Http\SendinblueHttpClient
+    arguments: ['@logger.factory', '@http_client']
+
+  sendinblue.api.v2:
+    class: Drupal\sendinblue\Tools\Api\SendinblueApiV2
+    arguments: ['@logger.factory', '@sendinblue.api.http_client']
+
+  sendinblue.api.v3:
+    class: Drupal\sendinblue\Tools\Api\SendinblueApiV3
+    arguments: ['@logger.factory', '@sendinblue.api.http_client']
+
+  sendinblue.routing:
+    class: Drupal\sendinblue\Routing\SubscribeRoutes
+    arguments: ['@entity_type.manager']
+
+  sendinblue.manager:
+    class: Drupal\sendinblue\SendinblueManager
+    arguments: ['@sendinblue.api.v2', '@sendinblue.api.v3', '@config.factory', '@database', '@form_builder', '@renderer', '@plugin.manager.mail', '@current_user']

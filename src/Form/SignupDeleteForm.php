@@ -45,7 +45,7 @@ class SignupDeleteForm extends ContentEntityConfirmFormBase {
     $entity = $this->getEntity();
     $entity->delete();
 
-    \Drupal::logger('sendinblue_signup_form')->notice('@type: deleted %title.',
+    $this->logger('sendinblue_signup_form')->notice('@type: deleted %title.',
       [
         '@type' => $this->entity->bundle(),
         '%title' => $this->entity->label(),

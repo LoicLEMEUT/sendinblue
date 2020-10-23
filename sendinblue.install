@@ -6,7 +6,6 @@
  */
 
 use Drupal\sendinblue\SendinblueManager;
-use Drupal\Core\Form\ConfigFormBase;
 
 /**
  * Implements hook_schema().
@@ -64,6 +63,11 @@ function sendinblue_uninstall() {
   \Drupal::getContainer()
     ->get('config.factory')
     ->getEditable(SendinblueManager::CONFIG_SETTINGS_REGISTERING_USER)->delete();
+
+  $config = \Drupal::getContainer()
+    ->get('config.factory')
+    ->getEditable('system.mail');
+  $config->set('interface.default', 'php_mail')->save();
 }
 
 /**
@@ -133,7 +137,6 @@ function sendinblue_update_8001() {
     ->set('sendinblue_on', \Drupal::config('sendinblue_config_send_email.settings')
       ->get('sendinblue_on', ''))
     ->save();
-
 
   \Drupal::getContainer()
     ->get('config.factory')

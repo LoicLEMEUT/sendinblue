@@ -4,10 +4,13 @@ namespace Drupal\sendinblue\Entity\Controller;
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityListBuilder;
+use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\sendinblue\SendinblueManager;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides a list controller for content_entity_example_contact entity.
@@ -15,6 +18,42 @@ use Drupal\sendinblue\SendinblueManager;
  * @ingroup content_entity_example
  */
 class SignupListBuilder extends EntityListBuilder {
+  /**
+   * SendinblueManager.
+   *
+   * @var \Drupal\sendinblue\SendinblueManager
+   */
+  private $sendinblueManager;
+
+  /**
+   * Constructs a \Drupal\system\ConfigFormBase object.
+   *
+   * @param \Drupal\Core\Entity\EntityTypeInterface $entity_type
+   *   EntityTypeInterface.
+   * @param \Drupal\Core\Entity\EntityStorageInterface $storage
+   *   EntityStorageInterface.
+   * @param \Drupal\sendinblue\SendinblueManager $sendinblueManager
+   *   SendinblueManager.
+   */
+  public function __construct(
+    EntityTypeInterface $entity_type,
+    EntityStorageInterface $storage,
+    SendinblueManager $sendinblueManager
+  ) {
+    parent::__construct($entity_type, $storage);
+    $this->sendinblueManager = $sendinblueManager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function createInstance(ContainerInterface $container, EntityTypeInterface $entity_type) {
+    return new static(
+      $entity_type,
+      $container->get('entity_type.manager')->getStorage($entity_type->id()),
+      $container->get('sendinblue.manager')
+    );
+  }
 
   /**
    * {@inheritdoc}
@@ -38,9 +77,9 @@ class SignupListBuilder extends EntityListBuilder {
    */
   public function buildHeader() {
     $header['name'] = $this->t('Name');
-    $header['mode'] = t('Display Mode(s)');
-    $header['mcLists'] = t('SendinBlue Lists');
-    $header['access'] = t('Page Access');
+    $header['mode'] = $this->t('Display Mode(s)');
+    $header['mcLists'] = $this->t('SendinBlue Lists');
+    $header['access'] = $this->t('Page Access');
     return $header + parent::buildHeader();
   }
 
@@ -55,32 +94,32 @@ class SignupListBuilder extends EntityListBuilder {
     $modes = NULL;
     $block_only = FALSE;
     switch ($signup->mode->value) {
-      case SENDINBLUE_SIGNUP_BLOCK:
-        $modes = Link::fromTextAndUrl(t('Block'), Url::fromUri('internal:/admin/structure/block'))
+      case SendinblueManager::SENDINBLUE_SIGNUP_BLOCK:
+        $modes = Link::fromTextAndUrl($this->t('Block'), Url::fromUri('internal:/admin/structure/block'))
           ->toString();
         $block_only = TRUE;
         break;
 
-      case SENDINBLUE_SIGNUP_PAGE:
-        $modes = Link::fromTextAndUrl(t('Page'), Url::fromUri('internal:/' . $settings['path']))
+      case SendinblueManager::SENDINBLUE_SIGNUP_PAGE:
+        $modes = Link::fromTextAndUrl($this->t('Page'), Url::fromUri('internal:/' . $settings['path']))
           ->toString();
         break;
 
-      case SENDINBLUE_SIGNUP_BOTH:
-        $modes = Link::fromTextAndUrl(t('Block'), Url::fromUri('internal:/admin/structure/block'))
+      case SendinblueManager::SENDINBLUE_SIGNUP_BOTH:
+        $modes = Link::fromTextAndUrl($this->t('Block'), Url::fromUri('internal:/admin/structure/block'))
           ->toString();
         $modes .= ' and ';
-        $modes .= Link::fromTextAndUrl(t('Page'), Url::fromUri('internal:/' . $settings['path']))
+        $modes .= Link::fromTextAndUrl($this->t('Page'), Url::fromUri('internal:/' . $settings['path']))
           ->toString();
 
         break;
     }
 
-    $list_name = SendinblueManager::getListNameById($settings['subscription']['settings']['list']);
-    $list_labels = Link::fromTextAndUrl($list_name, Url::fromUri('https://my.sendinblue.com/users/list/id/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link' . $settings['subscription']['settings']['list']));
+    $list_name = $this->sendinblueManager->getListNameById($settings['subscription']['settings']['list']);
+    $list_labels = Link::fromTextAndUrl($list_name, Url::fromUri(SendinblueManager::SIB_URL . '/users/list/id/?utm_source=drupal_plugin&utm_medium=plugin&utm_campaign=module_link' . $settings['subscription']['settings']['list']));
 
     if ($block_only) {
-      $access = t('N/A - this form only exists as a block');
+      $access = $this->t('N/A - this form only exists as a block');
     }
     else {
       $all_roles_allowed = user_roles(FALSE, 'sendinblue_signup_all_forms' . $signup->name->value);
@@ -93,7 +132,6 @@ class SignupListBuilder extends EntityListBuilder {
       }
 
       $access = implode(', ', $roles_allowed);
-      $actions[] = Link::fromTextAndUrl(t('Permissions'), Url::fromUri('internal:/admin/people/permissions', ['fragment' => 'edit-sendinblue-signup-all-forms']));
     }
 
     $row['name'] = $signup->title->value;

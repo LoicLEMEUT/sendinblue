@@ -6,14 +6,20 @@
                     <strong>{% trans %}My Account{% endtrans %}</strong>
                 </div>
                 <div class="panel-body">
-                    <span class="col-md-12"><b>{% trans %}You are currently logged in as :{% endtrans %}</b></span>
+                  <div class="col-md-8 row" style="margin-bottom: 10px;">
+                    <p class="col-md-12" style="margin-top: 5px;">
+                      <span class="col-md-12"><b>{% trans %}Your currently API Version :{% endtrans %} {{ api_version|upper }}</b></span>
+                    </p>
+                  </div>
+
+                  <span class="col-md-12"><b>{% trans %}You are currently logged in as :{% endtrans %}</b></span>
                     <div class="col-md-8 row" style="margin-bottom: 10px;">
                         <p class="col-md-12" style="margin-top: 5px;">
                             {{ account_username }} - {{ account_email }} <br/>
 
-                            {% for key,value in account_data %}
-                                {% if value.plan_type %}
-                                    {{ value.plan_type }} - {{ value.credits }} {% trans %}credits{% endtrans %}
+                            {% for key,value in account_data.plan %}
+                                {% if value.type %}
+                                    {{ value.type|upper }} - {{ value.credits }} {% trans %}credits{% endtrans %}
                                     <br/>
                                 {% endif %}
                             {% endfor %}
